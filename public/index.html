@@ -512,14 +512,15 @@
         </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
         /* ================= НАСТРОЙКИ & КОНСТАНТЫ ================= */
         let WORLD = 4000;
         let socket = null, isMultiplayer = false, myPid = null;
+        let SERVER_URL = window.SERVER_URL || '';
         if (typeof io !== 'undefined') {
             try {
-                socket = io();
+                socket = io(SERVER_URL);
                 socket.on('welcome', (data) => {
                     isMultiplayer = true;
                     myPid = data.pid;
