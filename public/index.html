@@ -1164,7 +1164,8 @@
                 if (alive.length > 0) {
                     if (!spectatingTarget || spectatingTarget.dead) spectatingTarget = alive[0];
                     targetP = spectatingTarget;
-                    document.getElementById('specName').innerText = targetP.name;
+                    const specNameEl = document.getElementById('specName');
+                    if (specNameEl) specNameEl.innerText = targetP.name;
                 }
             }
 
@@ -1473,17 +1474,23 @@
             if (spectatingTarget && specSelect) specSelect.value = spectatingTarget.pid || spectatingTarget.id || '';
         }
 
-        // Выбор режима
-        document.getElementById('modeBR').onclick = function () {
-            isBRMode = true;
-            this.classList.add('active');
-            document.getElementById('modeClassic').classList.remove('active');
-        };
-        document.getElementById('modeClassic').onclick = function () {
-            isBRMode = false;
-            this.classList.add('active');
-            document.getElementById('modeBR').classList.remove('active');
-        };
+        // Выбор режима (если присутствует в DOM)
+        const modeBR = document.getElementById('modeBR');
+        const modeClassic = document.getElementById('modeClassic');
+        if (modeBR) {
+            modeBR.onclick = function () {
+                isBRMode = true;
+                this.classList.add('active');
+                if (modeClassic) modeClassic.classList.remove('active');
+            };
+        }
+        if (modeClassic) {
+            modeClassic.onclick = function () {
+                isBRMode = false;
+                this.classList.add('active');
+                if (modeBR) modeBR.classList.remove('active');
+            };
+        }
 
         /* ================= НАСТРОЙКИ РАУНДА ================= */
         const settingsModal = document.getElementById('settingsModal');
@@ -1491,13 +1498,21 @@
         const closeSettingsBtn = document.getElementById('closeSettingsBtn');
         const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
-        openSettingsBtn.onclick = () => settingsModal.classList.remove('hidden');
-        closeSettingsBtn.onclick = () => settingsModal.classList.add('hidden');
+        if (openSettingsBtn) openSettingsBtn.onclick = () => settingsModal && settingsModal.classList.remove('hidden');
+        if (closeSettingsBtn) closeSettingsBtn.onclick = () => settingsModal && settingsModal.classList.add('hidden');
 
         function applySettingsFromUI() {
-            const w = parseFloat(document.getElementById('setZoneWait').value) || 5;
-            const d = parseFloat(document.getElementById('setZoneDuration').value) || 15;
-            const dps = parseFloat(document.getElementById('setZoneDps').value) || 3;
+            const elWait = document.getElementById('setZoneWait');
+            const elDur = document.getElementById('setZoneDuration');
+            const elDps = document.getElementById('setZoneDps');
+            const elStart = document.getElementById('setStartMass');
+            const elFood = document.getElementById('setFoodCount');
+            const elVirus = document.getElementById('setVirusCount');
+            const elMatch = document.getElementById('setMatchTime');
+
+            const w = parseFloat(elWait ? elWait.value : 5) || 5;
+            const d = parseFloat(elDur ? elDur.value : 15) || 15;
+            const dps = parseFloat(elDps ? elDps.value : 3) || 3;
 
             ZONE_PHASES = [
                 { wait: w, duration: d, r: 2400, dps: dps },
@@ -1506,24 +1521,24 @@
                 { wait: 0, duration: d, r: 180, dps: Math.round(dps * 10) }
             ];
 
-            START_MASS = parseInt(document.getElementById('setStartMass').value) || 30;
-            FOOD_MAX = parseInt(document.getElementById('setFoodCount').value) || 1100;
-            VIRUS_COUNT = parseInt(document.getElementById('setVirusCount').value) || 24;
-            const matchMin = parseInt(document.getElementById('setMatchTime').value) || 5;
+            START_MASS = parseInt(elStart ? elStart.value : 30) || 30;
+            FOOD_MAX = parseInt(elFood ? elFood.value : 1100) || 1100;
+            VIRUS_COUNT = parseInt(elVirus ? elVirus.value : 24) || 24;
+            const matchMin = parseInt(elMatch ? elMatch.value : 5) || 5;
 
             if (isMultiplayer && socket) {
                 socket.emit('update_settings', {
                     zoneWait: w,
                     zoneDuration: d,
                     zoneDps: dps,
-                    botFill: BOT_MAX,
+                    botFill: 0,
                     startMass: START_MASS,
                     foodCount: FOOD_MAX,
                     virusCount: VIRUS_COUNT,
                     matchMin: matchMin
                 });
             }
-            settingsModal.classList.add('hidden');
+            if (settingsModal) settingsModal.classList.add('hidden');
         }
 
         saveSettingsBtn.onclick = applySettingsFromUI;
