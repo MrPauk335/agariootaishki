@@ -445,7 +445,7 @@
         <input id="nick" maxlength="14" placeholder="Твой ник" value="Игрок">
         <div style="display:flex; gap:10px;">
             <button id="playBtn" class="main-btn" style="width:190px;">В БОЙ</button>
-            <button id="openSettingsBtn" class="mode-btn" style="padding:14px 16px; font-weight:700; background:#1b2233;">⚙️ НАСТРОЙКИ</button>
+            <button id="openSettingsBtn" class="mode-btn hidden" style="padding:14px 16px; font-weight:700; background:#1b2233;">⚙️ АДМИН</button>
         </div>
         <div class="small">
             Единый онлайн-сервер для всех игроков. Поедай соперников и избегай токсичной зоны!
@@ -455,7 +455,7 @@
     <!-- SETTINGS MODAL -->
     <div id="settingsModal" class="screen hidden" style="z-index: 20; background: rgba(5, 7, 13, 0.92);">
         <div class="settings-box">
-            <h2>⚙️ НАСТРОЙКИ РАУНДА</h2>
+            <h2>⚙️ АДМИН-ПАНЕЛЬ СЕРВЕРА</h2>
 
             <div class="preset-row">
                 <button type="button" class="preset-btn active" id="presetFast">⚡ Супер-быстрая (5с / 15с)</button>
@@ -465,8 +465,12 @@
 
             <div class="settings-grid">
                 <div class="set-group" style="grid-column: 1 / -1;">
-                    <label for="setServerUrl">Адрес Node.js сервера (например, https://app.onrender.com)</label>
-                    <input type="text" id="setServerUrl" placeholder="Оставьте пустым для локального сервера" style="text-align: left;">
+                    <label for="setServerUrl">Адрес Node.js сервера (автоматически для Render)</label>
+                    <input type="text" id="setServerUrl" placeholder="Оставьте пустым для автоопределения" style="text-align: left;">
+                </div>
+                <div class="set-group" style="grid-column: 1 / -1;">
+                    <label for="setAdminKey">Пароль администратора (по умолчанию pauk123)</label>
+                    <input type="password" id="setAdminKey" placeholder="Пароль администратора" style="text-align: left;">
                 </div>
                 <div class="set-group">
                     <label for="setZoneWait">Пауза до сжатия (сек)</label>
@@ -521,16 +525,17 @@
         /* ================= НАСТРОЙКИ & КОНСТАНТЫ ================= */
         let WORLD = 4000;
         let socket = null, isMultiplayer = false, myPid = null;
-        let SERVER_URL = new URLSearchParams(window.location.search).get('server') || localStorage.getItem('agario_server_url') || window.SERVER_URL || '';
+        const DEFAULT_PROD_SERVER = 'https://agariootaishki.onrender.com';
+        const isStaticHost = location.hostname.includes('workers.dev') || location.hostname.includes('pages.dev') || location.hostname.includes('github.io') || location.hostname.includes('netlify.app') || location.hostname.includes('vercel.app');
+        let SERVER_URL = new URLSearchParams(window.location.search).get('server') || localStorage.getItem('agario_server_url') || window.SERVER_URL || (isStaticHost ? DEFAULT_PROD_SERVER : '');
 
         function connectToServer(url) {
             if (typeof io === 'undefined') return;
-            const isStaticHost = location.hostname.includes('workers.dev') || location.hostname.includes('pages.dev') || location.hostname.includes('github.io') || location.hostname.includes('netlify.app') || location.hostname.includes('vercel.app');
             if (!url && isStaticHost) {
                 const nb = document.getElementById('netBadge');
                 if (nb) {
                     nb.style.color = '#ffcc00';
-                    nb.innerText = '🟡 CLOUDFLARE СТАТИКА: УКАЖИТЕ URL СЕРВЕРА В НАСТРОЙКАХ РАУНДА ИЛИ ?server=URL';
+                    nb.innerText = '🟡 CLOUDFLARE: УКАЖИТЕ URL СЕРВЕРА В НАСТРОЙКАХ РАУНДА ИЛИ ?server=URL';
                 }
                 return;
             }
@@ -568,6 +573,8 @@
                 socket.on('kill_feed', (d) => { addKillfeed(d.killer, d.victim); });
                 socket.on('eliminated', (d) => { gameOver(d.place || 2); });
                 socket.on('victory', () => { gameOver(1); });
+                socket.on('admin_error', (msg) => { alert('❌ Ошибка: ' + msg); });
+                socket.on('settings_updated', () => { alert('✅ Настройки сервера успешно применены!'); });
                 socket.on('snap', (snap) => {
                     if (!isMultiplayer) return;
                     running = true;
@@ -1515,10 +1522,36 @@
         const closeSettingsBtn = document.getElementById('closeSettingsBtn');
         const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
+        // Открытие админ-кнопки по секретному действию (Alt+A, тройной клик по заголовку или ?admin=1)
+        if (new URLSearchParams(window.location.search).get('admin') || localStorage.getItem('agario_admin_key')) {
+            if (openSettingsBtn) openSettingsBtn.classList.remove('hidden');
+        }
+        const titleLogo = document.querySelector('#start h1');
+        if (titleLogo) {
+            let clk = 0;
+            titleLogo.style.cursor = 'pointer';
+            titleLogo.title = 'Тройной клик для входа в панель админа';
+            titleLogo.onclick = () => {
+                if (++clk >= 3) {
+                    if (openSettingsBtn) openSettingsBtn.classList.remove('hidden');
+                    if (settingsModal) settingsModal.classList.remove('hidden');
+                    clk = 0;
+                }
+            };
+        }
+        window.addEventListener('keydown', (e) => {
+            if (e.altKey && (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф')) {
+                if (openSettingsBtn) openSettingsBtn.classList.remove('hidden');
+                if (settingsModal) settingsModal.classList.remove('hidden');
+            }
+        });
+
         if (openSettingsBtn) openSettingsBtn.onclick = () => {
             if (settingsModal) settingsModal.classList.remove('hidden');
             const elServer = document.getElementById('setServerUrl');
             if (elServer) elServer.value = SERVER_URL || '';
+            const elAdmin = document.getElementById('setAdminKey');
+            if (elAdmin) elAdmin.value = localStorage.getItem('agario_admin_key') || 'pauk123';
         };
         if (closeSettingsBtn) closeSettingsBtn.onclick = () => settingsModal && settingsModal.classList.add('hidden');
 
@@ -1532,6 +1565,9 @@
                     connectToServer(SERVER_URL);
                 }
             }
+            const elAdmin = document.getElementById('setAdminKey');
+            const adminPass = elAdmin ? elAdmin.value.trim() : (localStorage.getItem('agario_admin_key') || 'pauk123');
+            if (elAdmin) localStorage.setItem('agario_admin_key', adminPass);
 
             const elWait = document.getElementById('setZoneWait');
             const elDur = document.getElementById('setZoneDuration');
@@ -1559,6 +1595,7 @@
 
             if (isMultiplayer && socket) {
                 socket.emit('update_settings', {
+                    adminKey: adminPass,
                     zoneWait: w,
                     zoneDuration: d,
                     zoneDps: dps,

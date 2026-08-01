@@ -24,6 +24,7 @@ const CFG = {
     BOT_FILL: 0,
     FOG: process.env.FOG !== '0',
     MATCH_MS: 8 * 60 * 1000,
+    ADMIN_KEY: process.env.ADMIN_KEY || 'pauk123',
 
     START_MASS: 30,
     MIN_MASS: 10,
@@ -832,6 +833,10 @@ io.on('connection', (socket) => {
     socket.on('eject', () => ejectMass(player));
 
     socket.on('update_settings', (data) => {
+        if (!data || data.adminKey !== CFG.ADMIN_KEY) {
+            socket.emit('admin_error', 'Неверный пароль администратора!');
+            return;
+        }
         if (state.phase === 'lobby' && data) {
             if (typeof data.botFill === 'number') CFG.BOT_FILL = clamp(data.botFill, 0, 60);
             if (typeof data.startMass === 'number') CFG.START_MASS = clamp(data.startMass, 10, 500);
