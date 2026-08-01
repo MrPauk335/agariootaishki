@@ -59,6 +59,7 @@ const CFG = {
         { wait: 0, shrink: 15000, r: 180, dps: 30 }
     ],
     ZONE_PCT_DPS: 0.015,
+    FINAL_STANDOFF_MS: +(process.env.FINAL_STANDOFF_MS || 10000), // после финального сжатия зоны: 10 сек на развязку, потом побеждает самый массивный
 };
 
 /* ---------------------- UTILS ---------------------- */
@@ -80,8 +81,9 @@ function sanitizeName(n) {
 
 /* ---------------------- STATE ---------------------- */
 const state = {
-    phase: 'lobby',       // lobby | countdown | live | over
+    phase: 'lobby',       // lobby | live | over
     cdEnd: 0,
+    finalEnd: 0,          // >0: по этой метке времени заканчивается финальный отсчёт (после последнего сжатия зоны)
     matchStart: 0,
     matchEnd: 0,
     players: new Map(),   // pid -> player
@@ -145,14 +147,15 @@ function resetWorld() {
     };
 
     for (let i = 0; i < CFG.FOOD; i++) spawnFoodAt();
-    for (let i = 0; i < CFG.VIRUS; i++) {
-        state.viruses.push({
-            id: nid(),
-            x: rnd(200, CFG.MAP - 200),
-            y: rnd(200, CFG.MAP - 200),
-            m: CFG.VIRUS_MASS, vx: 0, vy: 0,
-        });
-    }
+            for (let i = 0; i < CFG.VIRUS; i++) {
+                state.viruses.push({
+                    id: nid(),
+                    x: rnd(200, CFG.MAP - 200),
+                    y: rnd(200, CFG.MAP - 200),
+                    m: CFG.VIRUS_MASS, vx: 0, vy: 0,
+                });
+            }
+    state.finalEnd = 0; // сброс финального отсчёта на новый матч
 }
 
 /* ---------------------- ZONE LOGIC ---------------------- */
@@ -201,9 +204,11 @@ function updateZone() {
                 z.t0 = now;
                 z.t1 = now + nxt.wait;
             } else {
-                z.st = 'wait';
+                // Финальное сжатие закончено: запускаем отсчёт развязки
+                z.st = 'final';
                 z.t0 = now;
                 z.t1 = now + 99999999;
+                if (!state.finalEnd) state.finalEnd = now + CFG.FINAL_STANDOFF_MS;
             }
         }
     }
@@ -481,21 +486,18 @@ function physicsTick(dt) {
                 c.y = clamp(c.y, 15, CFG.MAP - 15);
             }
         }
-        const humans = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && p.status === 'alive');
-        if (humans.length >= CFG.MIN_HUMANS) {
-            if (state.cdEnd === 0) {
-                state.cdEnd = T() + CFG.LOBBY_MS;
-            } else if (T() >= state.cdEnd) {
-                state.cdEnd = 0;
-                startMatch();
-            }
-        } else {
-            state.cdEnd = 0;
-        }
+        // Автостарт отключён: матч начинается только по кнопке хоста (host_start_game).
         return;
     }
 
     if (state.phase === 'live' && T() - state.matchStart >= CFG.MATCH_MS) {
+        const alive = getAlivePlayers().sort((a, b) => b.total - a.total);
+        endMatch(alive[0] || null);
+        return;
+    }
+
+    // Зона сжалась до финального радиуса: после FINAL_STANDOFF_MS побеждает самый массивный
+    if (state.phase === 'live' && state.finalEnd > 0 && T() >= state.finalEnd) {
         const alive = getAlivePlayers().sort((a, b) => b.total - a.total);
         endMatch(alive[0] || null);
         return;
@@ -854,6 +856,7 @@ function broadcastTick() {
                 ny: state.zone ? Math.round(state.zone.ny) : Math.round(curZone.y),
                 nr: state.zone ? Math.round(state.zone.nr) : Math.round(curZone.r),
                 st: state.zone ? state.zone.st : 'wait',
+                fd: state.finalEnd > 0 ? Math.max(0, Math.ceil((state.finalEnd - T()) / 1000)) : null, // сек. до конца финального противостояния
             },
             hud: { rank: myRank, mass: myMass, kills: myKills, alive: getAlivePlayers().length, time: Math.max(0, Math.floor((CFG.MATCH_MS - (T() - state.matchStart)) / 1000)), lb: leaderboard },
             ev: state.events,
