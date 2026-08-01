@@ -441,18 +441,14 @@
     <!-- START SCREEN -->
     <div id="start" class="screen">
         <h1>ОГАРИО ROYALE</h1>
-        <div id="netBadge" style="font-size:13px; font-weight:bold; color:#ffcc00; margin-bottom:12px;">🟡 ОФФЛАЙН (ЛОКАЛЬНЫЙ РЕЖИМ)</div>
-        <div class="mode-select">
-            <div id="modeBR" class="mode-btn active">BATTLE ROYALE (ЗОНА)</div>
-            <div id="modeClassic" class="mode-btn">КЛАССИКА</div>
-        </div>
+        <div id="netBadge" style="font-size:13px; font-weight:bold; color:#00ff66; margin-bottom:12px;">🟢 ЕДИНЫЙ ГЛОБАЛЬНЫЙ СЕРВЕР</div>
         <input id="nick" maxlength="14" placeholder="Твой ник" value="Игрок">
         <div style="display:flex; gap:10px;">
             <button id="playBtn" class="main-btn" style="width:190px;">В БОЙ</button>
             <button id="openSettingsBtn" class="mode-btn" style="padding:14px 16px; font-weight:700; background:#1b2233;">⚙️ НАСТРОЙКИ</button>
         </div>
         <div class="small">
-            Поедай точки и соперников. Избегай токсичной зоны вне безопасного круга! Зелёные вирусы разрывают гигантов.
+            Единый онлайн-сервер для всех игроков. Поедай соперников и избегай токсичной зоны!
         </div>
     </div>
 
@@ -479,10 +475,6 @@
                 <div class="set-group">
                     <label for="setZoneDps">Базовый урон зоны (DPS)</label>
                     <input type="number" id="setZoneDps" value="3" min="1" max="50">
-                </div>
-                <div class="set-group">
-                    <label for="setBotCount">Количество ботов</label>
-                    <input type="number" id="setBotCount" value="28" min="0" max="60">
                 </div>
                 <div class="set-group">
                     <label for="setStartMass">Стартовая масса</label>
@@ -1406,10 +1398,8 @@
         function play() {
             startS.classList.add('hidden'); overS.classList.add('hidden');
             const nickname = document.getElementById('nick').value.trim() || 'Игрок';
-            if (isMultiplayer && socket) {
+            if (socket) {
                 socket.emit('join', { name: nickname });
-            } else {
-                initGame(nickname);
             }
         }
 
@@ -1515,7 +1505,6 @@
                 { wait: 0, duration: d, r: 180, dps: Math.round(dps * 10) }
             ];
 
-            BOT_MAX = parseInt(document.getElementById('setBotCount').value) || 28;
             START_MASS = parseInt(document.getElementById('setStartMass').value) || 30;
             FOOD_MAX = parseInt(document.getElementById('setFoodCount').value) || 1100;
             VIRUS_COUNT = parseInt(document.getElementById('setVirusCount').value) || 24;

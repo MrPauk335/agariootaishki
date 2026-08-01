@@ -72,9 +72,6 @@ const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 let seq = 1;
 const nid = () => seq++;
 
-const BOT_NAMES = ['Nyx', 'Vex', 'Rook', 'Krill', 'Zed', 'Mora', 'Grim', 'Sable',
-    'Onyx', 'Hex', 'Volt', 'Riven', 'Dusk', 'Crow', 'Pyre', 'Bane', 'Wraith', 'Fang'];
-
 function sanitizeName(n) {
     n = String(n || '').replace(/[<>&"'`\r\n\t]/g, '').trim().slice(0, 14);
     return n || 'Cell';
@@ -315,64 +312,8 @@ function getAlivePlayers() {
 }
 
 function updateBots() {
-    if (!CFG.BOTS || state.phase !== 'live') return;
-    const curZone = getCurrentZone();
-
-    for (const p of state.players.values()) {
-        if (!p.isBot || p.status !== 'alive') continue;
-
-        if (T() > p.bot.targetTime) {
-            p.bot.targetTime = T() + rnd(200, 500);
-            const cent = getPlayerCentroid(p);
-
-            // Flee zone if outside
-            if (dist(cent.x, cent.y, curZone.x, curZone.y) > curZone.r - 100) {
-                p.bot.tx = curZone.x;
-                p.bot.ty = curZone.y;
-            } else {
-                // Search threat / prey
-                let threat = null, prey = null;
-                let minDistT = 600, minDistP = 500;
-
-                for (const other of getAlivePlayers()) {
-                    if (other.pid === p.pid) continue;
-                    const oCent = getPlayerCentroid(other);
-                    const d = dist(cent.x, cent.y, oCent.x, oCent.y);
-
-                    if (other.total > p.total * 1.15 && d < minDistT) {
-                        threat = oCent; minDistT = d;
-                    } else if (p.total > other.total * 1.15 && d < minDistP) {
-                        prey = oCent; minDistP = d;
-                    }
-                }
-
-                if (threat) {
-                    p.bot.tx = cent.x - (threat.x - cent.x) * 2;
-                    p.bot.ty = cent.y - (threat.y - cent.y) * 2;
-                } else if (prey) {
-                    p.bot.tx = prey.x;
-                    p.bot.ty = prey.y;
-                    if (minDistP < 250 && Math.random() < p.bot.aggressive) splitPlayer(p);
-                } else {
-                    // Wander towards food
-                    let closestF = null, minFD = 400;
-                    for (const f of state.food) {
-                        const fd = dist(cent.x, cent.y, f.x, f.y);
-                        if (fd < minFD) { minFD = fd; closestF = f; }
-                    }
-                    if (closestF) {
-                        p.bot.tx = closestF.x; p.bot.ty = closestF.y;
-                    } else {
-                        p.bot.tx = clamp(cent.x + rnd(-300, 300), 100, CFG.MAP - 100);
-                        p.bot.ty = clamp(cent.y + rnd(-300, 300), 100, CFG.MAP - 100);
-                    }
-                }
-            }
-        }
-
-        const c = getPlayerCentroid(p);
-        p.aim = { x: p.bot.tx - c.x, y: p.bot.ty - c.y };
-    }
+    // Bots completely removed
+    return;
 }
 
 function startMatch() {
@@ -381,27 +322,10 @@ function startMatch() {
     state.matchStart = T();
     state.winner = null;
 
-    const humans = Array.from(state.players.values()).filter(p => !p.isBot);
-
-    // Clean bots
-    for (const [pid, p] of Array.from(state.players.entries())) {
-        if (p.isBot) state.players.delete(pid);
-    }
-
-    // Add players
-    const participants = [...humans];
-    let botIdx = 0;
-    while (participants.length < CFG.BOT_FILL && CFG.BOTS) {
-        const bName = BOT_NAMES[botIdx % BOT_NAMES.length] + (botIdx >= BOT_NAMES.length ? botIdx : '');
-        const bot = newPlayer(null, bName, true);
-        state.players.set(bot.pid, bot);
-        participants.push(bot);
-        botIdx++;
-    }
-
+    const participants = Array.from(state.players.values()).filter(p => !p.isBot && p.status !== 'spectator');
     state.startedCount = participants.length;
 
-    // Spawn cells in zone
+    // Spawn cells in zone for all human participants
     for (const p of participants) {
         p.status = 'alive';
         p.cells = [];
@@ -874,8 +798,24 @@ io.on('connection', (socket) => {
     socket.on('join', (data) => {
         player.name = sanitizeName(data && data.name);
         if (state.phase === 'live') {
-            player.status = 'spectator';
-            socket.emit('joined_spectator');
+            const curZone = getCurrentZone();
+            if (curZone.r > 300) {
+                player.status = 'alive';
+                player.cells = [];
+                player.kills = 0;
+                player.total = CFG.START_MASS;
+                player.maxMass = CFG.START_MASS;
+                const ang = Math.random() * Math.PI * 2;
+                const r = Math.sqrt(Math.random()) * (curZone.r * 0.5);
+                const x = clamp(curZone.x + Math.cos(ang) * r, 100, CFG.MAP - 100);
+                const y = clamp(curZone.y + Math.sin(ang) * r, 100, CFG.MAP - 100);
+                player.cells.push(createCell(player, x, y, CFG.START_MASS));
+                state.startedCount++;
+                socket.emit('joined_lobby');
+            } else {
+                player.status = 'spectator';
+                socket.emit('joined_spectator');
+            }
         } else {
             player.status = 'lobby';
             socket.emit('joined_lobby');
