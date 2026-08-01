@@ -1093,8 +1093,9 @@
         const rnd = (a, b) => a + Math.random() * (b - a);
         const rndi = (a, b) => Math.floor(rnd(a, b));
         const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
-        const radius = m => Math.sqrt(m) * 5.2;
-        const speedOf = m => 810 / Math.pow(radius(m), 0.44);
+        // Формулы совпадают с сервером — иначе клиентское предсказание будет разъезжаться с правдой
+        const radius = m => 4 * Math.sqrt(Math.max(1, m));
+        const speedOf = m => Math.max(55, 760 * Math.pow(Math.max(1, m), -0.28));
 
         const NAMES = ['Волк', 'Сырок', 'Нагибатор', 'Кекс', 'Дракон', 'Пельмень', 'Тень', 'Босс', 'Пиксель',
             'Котлета', 'Шрек', 'Виря', 'Гуру', 'Луна', 'Барсик', 'Титан', 'Бублик', 'Мираж', 'Хомяк', 'Зефир',
@@ -1790,16 +1791,54 @@
             netLastSnapT = now;
         }
         function updateNet(dt) {
-            // dt — секунды с предыдущего кадра (≈0.016 при 60 fps).
-            // Целимся интерполировать пол дистанцию примерно за один сетевой интервал:
-            // factor = dt / avgSnapInterval. Чтобы даже при большом пинге клетка "догоняла" target.
             const avgIntSec = Math.max(0.05, netAvgInterval / 1000);
-            const base = Math.min(1, dt / avgIntSec);
-            const lerpFactor = Math.min(1, base * 1.25); // чуть быстрее, чтобы не отставать
+            const lerpFactor = Math.min(1, (dt / avgIntSec) * 1.25);
+
             for (const p of players) {
                 if (p.dead) continue;
+                const isMine = (p.pid === myPid);
                 for (const c of p.cells) {
-                    if (c.tx !== undefined && c.ty !== undefined) {
+                    if (c.tx === undefined || c.ty === undefined) continue;
+
+                    if (isMine && !isSpectator) {
+                        // СВОИ КЛЕТКИ: предсказание на клиенте — реагируем на мышь мгновенно,
+                        // не дожидаясь RTT. Физика повторяет серверную (speedOf из серверных формул).
+                        if (c.vx === undefined) { c.vx = 0; c.vy = 0; }
+
+                        // Затухание импульса (split/eject) — как на сервере: vx *= 0.08^dt
+                        const boostDecay = Math.pow(0.08, dt);
+                        c.x += c.vx * dt; c.y += c.vy * dt;
+                        c.vx *= boostDecay; c.vy *= boostDecay;
+
+                        // Центроид вокруг предсказанных клеток (не серверных данных)
+                        let sx = 0, sy = 0, sm = 0;
+                        for (const oc of p.cells) { sx += oc.x * oc.m; sy += oc.y * oc.m; sm += oc.m; }
+                        const cenX = sm > 0 ? sx / sm : c.x, cenY = sm > 0 ? sy / sm : c.y;
+
+                        const aimX = (mouse.x - W / 2) / cam.s;
+                        const aimY = (mouse.y - H / 2) / cam.s;
+                        const targetX = cenX + aimX, targetY = cenY + aimY;
+                        const tdx = targetX - c.x, tdy = targetY - c.y;
+                        const tDist = Math.hypot(tdx, tdy);
+                        if (tDist > 5) {
+                            const spd = speedOf(c.m);
+                            const moveRatio = Math.min(1, spd * dt / tDist);
+                            c.x += tdx * moveRatio;
+                            c.y += tdy * moveRatio;
+                        }
+
+                        // Мягкая коррекция сервером: чем дальше, тем сильнее подтягиваем
+                        const ex = c.tx - c.x, ey = c.ty - c.y;
+                        const err = Math.hypot(ex, ey);
+                        if (err > 400) { // телепорт/спавн/поедание — снэп сразу
+                            c.x = c.tx; c.y = c.ty;
+                        } else if (err > 0.5) {
+                            const corr = Math.min(1, (err / 150)) * lerpFactor; // 0 при малой ошибке → сильнее при большой
+                            c.x += ex * corr; c.y += ey * corr;
+                        }
+                        if (c.tm !== undefined) c.m += (c.tm - c.m) * lerpFactor;
+                    } else {
+                        // ЧУЖИЕ клетки: чистая интерполяция между серверными снапами
                         c.x += (c.tx - c.x) * lerpFactor;
                         c.y += (c.ty - c.y) * lerpFactor;
                         if (c.tm !== undefined) c.m += (c.tm - c.m) * lerpFactor;
