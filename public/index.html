@@ -5,6 +5,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
     <title>Огарио Royale — Hardcore Battle Royale</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -17,8 +20,8 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background: #080911;
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #060810;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             color: #fff;
             user-select: none;
         }
@@ -37,55 +40,62 @@
             inset: 0;
             pointer-events: none;
             z-index: 4;
-            box-shadow: inset 0 0 100px rgba(255, 0, 85, 0.7);
+            box-shadow: inset 0 0 120px rgba(255, 0, 85, 0.75);
             opacity: 0;
-            transition: opacity 0.2s;
+            transition: opacity 0.25s ease;
         }
 
         /* HUD */
         #hud {
             position: absolute;
-            left: 16px;
-            bottom: 16px;
-            font-size: 15px;
-            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.8);
-            line-height: 1.6;
+            left: 20px;
+            bottom: 20px;
+            font-size: 14px;
+            line-height: 1.7;
             pointer-events: none;
             z-index: 5;
-            background: rgba(14, 18, 27, 0.65);
-            padding: 10px 16px;
-            border-radius: 12px;
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(12, 16, 28, 0.75);
+            padding: 12px 18px;
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
 
         .hud-val {
+            font-family: 'Outfit', sans-serif;
             font-weight: 800;
             color: #00f0ff;
+            font-size: 15px;
         }
 
         /* LEADERBOARD */
         #lb {
             position: absolute;
-            right: 16px;
-            top: 16px;
-            width: 210px;
-            background: rgba(14, 18, 27, 0.75);
-            border-radius: 12px;
-            padding: 12px 14px;
+            right: 20px;
+            top: 20px;
+            width: 220px;
+            background: rgba(12, 16, 28, 0.8);
+            border-radius: 16px;
+            padding: 14px 16px;
             font-size: 13px;
             line-height: 1.6;
             pointer-events: none;
             z-index: 5;
-            backdrop-filter: blur(6px);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
 
         #lb h3 {
-            font-size: 14px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 15px;
+            font-weight: 800;
             text-align: center;
-            margin-bottom: 8px;
-            letter-spacing: 1.5px;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
             color: #a78bfa;
             text-transform: uppercase;
         }
@@ -98,87 +108,95 @@
         /* KILLFEED */
         #killfeed {
             position: absolute;
-            left: 16px;
-            top: 16px;
+            left: 20px;
+            top: 20px;
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 8px;
             pointer-events: none;
             z-index: 5;
         }
 
         .kf-item {
-            background: rgba(14, 18, 27, 0.7);
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            border-left: 3px solid #ff0055;
-            backdrop-filter: blur(4px);
+            background: rgba(12, 16, 28, 0.85);
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            border-left: 3.5px solid #ff0055;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
             animation: fadeIn 0.3s forwards;
         }
 
         #hint {
             position: absolute;
             left: 50%;
-            top: 16px;
+            top: 20px;
             transform: translateX(-50%);
             font-size: 13px;
-            opacity: 0.7;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.85);
             pointer-events: none;
             z-index: 5;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 6px 16px;
-            border-radius: 20px;
+            background: rgba(12, 16, 28, 0.75);
+            padding: 8px 20px;
+            border-radius: 30px;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         /* SPECTATOR BAR */
         #specBar {
             position: absolute;
-            bottom: 20px;
+            bottom: 24px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 6;
             display: flex;
             align-items: center;
             gap: 12px;
-            background: rgba(18, 21, 38, 0.85);
-            padding: 8px 18px;
+            background: rgba(14, 18, 30, 0.9);
+            padding: 10px 22px;
             border-radius: 30px;
-            border: 1px solid #00f0ff;
-            backdrop-filter: blur(6px);
+            border: 1px solid rgba(0, 240, 255, 0.4);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 240, 255, 0.15);
         }
 
         .spec-btn {
             background: #00f0ff;
-            color: #000;
-            font-size: 12px;
+            color: #060810;
+            font-family: 'Outfit', sans-serif;
+            font-size: 13px;
             font-weight: 800;
-            padding: 6px 14px;
+            padding: 7px 16px;
             border: none;
-            border-radius: 16px;
+            border-radius: 20px;
             cursor: pointer;
-            transition: 0.15s;
+            transition: all 0.2s ease;
         }
 
         .spec-btn:hover {
             background: #6ee7ff;
             transform: scale(1.05);
+            box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
         }
 
         .spec-select {
-            background: #161b26;
+            background: #121724;
             color: #00f0ff;
+            font-family: 'Inter', sans-serif;
             font-size: 13px;
             font-weight: 700;
-            padding: 6px 12px;
-            border: 1px solid #00f0ff;
+            padding: 7px 14px;
+            border: 1px solid rgba(0, 240, 255, 0.3);
             border-radius: 16px;
             outline: none;
             cursor: pointer;
         }
 
         .spec-select option {
-            background: #101420;
+            background: #0c101b;
             color: #fff;
         }
 
@@ -190,92 +208,267 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 16px;
-            background: rgba(8, 9, 17, 0.88);
-            backdrop-filter: blur(8px);
+            gap: 20px;
+            background: radial-gradient(circle at center, rgba(14, 18, 32, 0.85) 0%, rgba(6, 8, 16, 0.94) 100%);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             z-index: 10;
         }
 
-        .screen h1 {
-            font-size: 48px;
+        .start-card {
+            background: rgba(14, 18, 30, 0.75);
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            border-radius: 24px;
+            padding: 36px 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(16px);
+            position: relative;
+        }
+
+        .start-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: 20%;
+            right: 20%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #00f0ff, #a78bfa, transparent);
+        }
+
+        .start-card h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 42px;
             font-weight: 900;
-            letter-spacing: 4px;
-            background: linear-gradient(90deg, #00f0ff, #a78bfa, #ff0055);
+            letter-spacing: 3px;
+            background: linear-gradient(135deg, #00f0ff 0%, #a78bfa 50%, #ff0055 100%);
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
-            text-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+            text-shadow: 0 0 35px rgba(0, 240, 255, 0.35);
+            line-height: 1.1;
+            margin-bottom: 2px;
         }
 
-        input,
-        button {
-            font: inherit;
-            border: none;
-            border-radius: 12px;
-            padding: 14px 24px;
-            outline: none;
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #00ff66;
+            background: rgba(0, 255, 102, 0.1);
+            border: 1px solid rgba(0, 255, 102, 0.25);
+            padding: 6px 14px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
         }
 
-        input {
-            width: 280px;
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00ff66;
+            box-shadow: 0 0 10px #00ff66;
+            animation: pulseDot 2s infinite;
+        }
+
+        @keyframes pulseDot {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.6; }
+        }
+
+        .input-group {
+            width: 100%;
+            position: relative;
+        }
+
+        .input-group input {
+            width: 100%;
             text-align: center;
-            background: #161b26;
+            background: rgba(20, 26, 42, 0.8);
             color: #fff;
-            border: 1px solid #2a3145;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            font-family: 'Inter', sans-serif;
             font-size: 16px;
+            font-weight: 600;
+            padding: 14px 20px;
+            border-radius: 14px;
+            outline: none;
+            transition: all 0.2s ease;
         }
 
-        input:focus {
+        .input-group input:focus {
             border-color: #00f0ff;
-            box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+            background: rgba(24, 32, 52, 0.95);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.25);
+        }
+
+        /* CUSTOMIZATION PANEL */
+        .custom-card {
+            width: 100%;
+            background: rgba(20, 26, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .custom-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #8a91b4;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 2px;
+        }
+
+        .swatch-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .color-presets {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .color-dot {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: transform 0.15s, border-color 0.15s;
+        }
+
+        .color-dot:hover {
+            transform: scale(1.15);
+        }
+
+        .color-dot.active {
+            border-color: #fff;
+            transform: scale(1.2);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .color-picker-wrap {
+            position: relative;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+            transition: transform 0.15s;
+        }
+
+        .color-picker-wrap:hover {
+            transform: scale(1.1);
+        }
+
+        .color-picker-wrap input[type="color"] {
+            position: absolute;
+            inset: -10px;
+            width: 50px;
+            height: 50px;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .avatar-select-wrap {
+            width: 100%;
+        }
+
+        .avatar-select-wrap select {
+            width: 100%;
+            background: rgba(14, 18, 30, 0.9);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .avatar-select-wrap select:focus {
+            border-color: #00f0ff;
+        }
+
+        #setCustomAvatarUrl {
+            width: 100%;
+            background: rgba(14, 18, 30, 0.9);
+            color: #fff;
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            outline: none;
+            margin-top: 6px;
         }
 
         button.main-btn {
-            background: linear-gradient(135deg, #00f0ff, #7000ff);
+            width: 100%;
+            background: linear-gradient(135deg, #00f0ff 0%, #7000ff 100%);
             color: #fff;
+            font-family: 'Outfit', sans-serif;
             font-weight: 800;
-            font-size: 16px;
+            font-size: 18px;
+            letter-spacing: 1px;
             cursor: pointer;
-            width: 280px;
-            transition: 0.2s;
-            box-shadow: 0 8px 25px rgba(0, 240, 255, 0.25);
+            padding: 15px;
+            border: none;
+            border-radius: 14px;
+            transition: all 0.2s ease;
+            box-shadow: 0 10px 30px rgba(0, 240, 255, 0.35);
         }
 
         button.main-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 30px rgba(0, 240, 255, 0.4);
+            transform: translateY(-2px) scale(1.01);
+            box-shadow: 0 14px 40px rgba(0, 240, 255, 0.5);
+            filter: brightness(1.1);
         }
 
-        .mode-select {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 4px;
+        button.main-btn:active {
+            transform: translateY(0) scale(0.99);
         }
 
         .mode-btn {
-            background: #161b26;
+            background: rgba(20, 26, 42, 0.8);
             color: #8a91b4;
-            padding: 8px 16px;
-            border-radius: 8px;
+            padding: 10px 18px;
+            border-radius: 10px;
             font-size: 13px;
+            font-weight: 700;
             cursor: pointer;
-            border: 1px solid #2a3145;
-            transition: 0.15s;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.2s;
         }
 
-        .mode-btn.active {
-            background: #00f0ff;
-            color: #000;
-            font-weight: 700;
+        .mode-btn:hover {
             border-color: #00f0ff;
+            color: #fff;
         }
 
         .small {
-            font-size: 13px;
-            opacity: 0.65;
+            font-size: 12px;
+            color: #8a91b4;
             text-align: center;
-            max-width: 340px;
-            line-height: 1.6;
+            line-height: 1.5;
         }
 
         .hidden {
@@ -284,18 +477,18 @@
 
         /* ROUND SETTINGS MODAL */
         .settings-box {
-            background: #101420;
+            background: rgba(14, 18, 30, 0.95);
             border: 1px solid rgba(0, 240, 255, 0.3);
-            border-radius: 16px;
-            padding: 24px;
+            border-radius: 20px;
+            padding: 28px;
             max-width: 520px;
             width: 90%;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 16px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(12px);
+            gap: 18px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(16px);
         }
 
         .settings-box h2 {
@@ -440,38 +633,59 @@
 
     <!-- START SCREEN -->
     <div id="start" class="screen">
-        <h1>ОГАРИО ROYALE</h1>
-        <div id="netBadge" style="font-size:13px; font-weight:bold; color:#00ff66; margin-bottom:12px;">🟢 ЕДИНЫЙ ГЛОБАЛЬНЫЙ СЕРВЕР</div>
-        <input id="nick" maxlength="14" placeholder="Твой ник" value="Игрок">
-        <div class="custom-row" style="display:flex; flex-direction:column; gap:8px; margin: 10px 0; background: rgba(255,255,255,0.06); padding: 10px 14px; border-radius: 8px; width:100%; max-width:320px;">
-            <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <label for="setPlayerColor" style="font-size:13px; color:#ccc;">Цвет:</label>
-                    <input type="color" id="setPlayerColor" value="#00ffff" style="width:36px; height:28px; border:none; cursor:pointer; background:transparent;">
+        <div class="start-card">
+            <h1>ОГАРИО ROYALE</h1>
+            <div id="netBadge" class="status-badge"><span class="status-dot"></span> ЕДИНЫЙ ГЛОБАЛЬНЫЙ СЕРВЕР</div>
+
+            <div class="input-group">
+                <input id="nick" maxlength="14" placeholder="Твой никнейм" value="Игрок">
+            </div>
+
+            <div class="custom-card">
+                <div>
+                    <div class="custom-section-title">Цвет клетки</div>
+                    <div class="swatch-row">
+                        <div class="color-presets" id="colorPresets">
+                            <div class="color-dot active" data-color="#00f0ff" style="background:#00f0ff;"></div>
+                            <div class="color-dot" data-color="#ff0055" style="background:#ff0055;"></div>
+                            <div class="color-dot" data-color="#00ff66" style="background:#00ff66;"></div>
+                            <div class="color-dot" data-color="#a78bfa" style="background:#a78bfa;"></div>
+                            <div class="color-dot" data-color="#ffe06a" style="background:#ffe06a;"></div>
+                            <div class="color-dot" data-color="#ff6600" style="background:#ff6600;"></div>
+                        </div>
+                        <div class="color-picker-wrap" title="Выбрать свой цвет">
+                            <input type="color" id="setPlayerColor" value="#00f0ff">
+                        </div>
+                    </div>
                 </div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <label for="setPlayerAvatar" style="font-size:13px; color:#ccc;">Аватар:</label>
-                    <select id="setPlayerAvatar" style="background:#1b2233; color:#fff; border:1px solid #334; padding:5px 8px; border-radius:6px; font-size:13px; outline:none;">
-                        <option value="">Без аватара</option>
-                        <option value="avatars/бобёр.png">🦫 Бобёр</option>
-                        <option value="avatars/давидик.png">👤 Давидик</option>
-                        <option value="avatars/даниилчик.png">👤 Даниилчик</option>
-                        <option value="avatars/зеля.png">👤 Зеля</option>
-                        <option value="avatars/пахан когда весёлый.png">😁 Пахан (весёлый)</option>
-                        <option value="avatars/пахан.png">😎 Пахан</option>
-                        <option value="avatars/урофем.png">👤 Урофем</option>
-                        <option value="custom">🌐 Свой URL...</option>
-                    </select>
+
+                <div>
+                    <div class="custom-section-title">Аватар</div>
+                    <div class="avatar-select-wrap">
+                        <select id="setPlayerAvatar">
+                            <option value="">Без аватара</option>
+                            <option value="avatars/бобёр.png">Бобёр</option>
+                            <option value="avatars/давидик.png">Давидик</option>
+                            <option value="avatars/даниилчик.png">Даниилчик</option>
+                            <option value="avatars/зеля.png">Зеля</option>
+                            <option value="avatars/пахан когда весёлый.png">Пахан (весёлый)</option>
+                            <option value="avatars/пахан.png">Пахан</option>
+                            <option value="avatars/урофем.png">Пахан / Урофем</option>
+                            <option value="custom">Свой URL (ссылка)...</option>
+                        </select>
+                        <input type="text" id="setCustomAvatarUrl" placeholder="Вставь URL картинки (https://...)" style="display:none;">
+                    </div>
                 </div>
             </div>
-            <input type="text" id="setCustomAvatarUrl" placeholder="Вставь URL картинки (https://...)" style="background:#1b2233; color:#fff; border:1px solid #334; padding:6px 10px; border-radius:6px; font-size:13px; outline:none; display:none; width:100%;">
-        </div>
-        <div style="display:flex; gap:10px;">
-            <button id="playBtn" class="main-btn" style="width:190px;">В БОЙ</button>
-            <button id="openSettingsBtn" class="mode-btn hidden" style="padding:14px 16px; font-weight:700; background:#1b2233;">⚙️ АДМИН</button>
-        </div>
-        <div class="small">
-            Единый онлайн-сервер для всех игроков. Поедай соперников и избегай токсичной зоны!
+
+            <div style="display:flex; gap:10px; width:100%;">
+                <button id="playBtn" class="main-btn">В БОЙ</button>
+                <button id="openSettingsBtn" class="mode-btn hidden" style="padding:14px 18px; font-weight:700;">⚙️</button>
+            </div>
+
+            <div class="small">
+                Единый онлайн-сервер для всех игроков. Поедай соперников и избегай токсичной зоны!
+            </div>
         </div>
     </div>
 
@@ -1459,8 +1673,38 @@
         const elColor = document.getElementById('setPlayerColor');
         const elAvatar = document.getElementById('setPlayerAvatar');
         const elCustomUrl = document.getElementById('setCustomAvatarUrl');
+        const colorDots = document.querySelectorAll('.color-dot');
 
-        if (elColor) elColor.value = localStorage.getItem('agario_color') || '#00ffff';
+        const savedColor = localStorage.getItem('agario_color') || '#00f0ff';
+        if (elColor) elColor.value = savedColor;
+
+        function updateActiveColorDot(hex) {
+            colorDots.forEach(dot => {
+                if (dot.dataset.color.toLowerCase() === hex.toLowerCase()) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+        }
+        updateActiveColorDot(savedColor);
+
+        colorDots.forEach(dot => {
+            dot.addEventListener('click', () => {
+                const c = dot.dataset.color;
+                if (elColor) elColor.value = c;
+                localStorage.setItem('agario_color', c);
+                updateActiveColorDot(c);
+            });
+        });
+
+        if (elColor) {
+            elColor.onchange = () => {
+                localStorage.setItem('agario_color', elColor.value);
+                updateActiveColorDot(elColor.value);
+            };
+        }
+
         const savedAva = localStorage.getItem('agario_avatar') || '';
         if (elAvatar) {
             if (savedAva && !Array.from(elAvatar.options).some(o => o.value === savedAva)) {
@@ -1481,7 +1725,6 @@
                 }
             };
         }
-        if (elColor) elColor.onchange = () => localStorage.setItem('agario_color', elColor.value);
         if (elCustomUrl) elCustomUrl.oninput = () => localStorage.setItem('agario_avatar', elCustomUrl.value.trim());
 
         function play() {
