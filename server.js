@@ -30,7 +30,12 @@ const CFG = {
     MIN_MASS: 10,
 
     FOOD: 1000,
-    FOOD_MASS: 1.3,
+    // Тиры еды: масса, цвет (для клиента), шанс выпадения
+    FOOD_TIERS: [
+        { m: 5, c: '#3dff6e', w: 0.85 },   // обычная зелёная
+        { m: 8, c: '#00d0ff', w: 0.12 },   // редкая голубая
+        { m: 12, c: '#ff3ffd', w: 0.03 },  // очень редкая фиолетовая
+    ],
     VIRUS: 26,
     VIRUS_MASS: 110,
     VIRUS_MAX: 220,
@@ -116,6 +121,16 @@ function newPlayer(sid, name, isBot = false) {
     };
 }
 
+function rollFoodTier() {
+    const r = Math.random();
+    let acc = 0;
+    for (const t of CFG.FOOD_TIERS) {
+        acc += t.w;
+        if (r <= acc) return t;
+    }
+    return CFG.FOOD_TIERS[0];
+}
+
 function spawnFoodAt(i) {
     const z = state.zone;
     let x, y;
@@ -128,7 +143,8 @@ function spawnFoodAt(i) {
         x = rnd(20, CFG.MAP - 20);
         y = rnd(20, CFG.MAP - 20);
     }
-    const f = { x: Math.round(x), y: Math.round(y), m: CFG.FOOD_MASS };
+    const tier = rollFoodTier();
+    const f = { x: Math.round(x), y: Math.round(y), m: tier.m, c: tier.c };
     if (i === undefined) state.food.push(f);
     else state.food[i] = f;
 }
@@ -825,7 +841,7 @@ function broadcastTick() {
             foodArray = [];
             for (const f of state.food) {
                 if (dist(f.x, f.y, viewX, viewY) < viewR + 50) {
-                    foodArray.push(f.x, f.y);
+                    foodArray.push(f.x, f.y, f.m, f.c); // x, y, mass, color
                 }
             }
         }

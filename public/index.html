@@ -885,14 +885,15 @@
                     isSpectator = true;
                     lastT = performance.now();
                 });
-                socket.on('kill_feed', (d) => { addKillfeed(d.killer, d.victim); });
+                socket.on('kill_feed', (d) => { addKillfeed(d.killer, d.victim); audio.playPop(); });
                 socket.on('eliminated', (d) => {
                     isSpectator = true;
                     const sb = document.getElementById('specBar');
                     if (sb) sb.classList.remove('hidden');
+                    audio.playPop();
                     gameOver(d.place || 2, d.you);
                 });
-                socket.on('victory', (d) => { gameOver(1, d && d.you); });
+                socket.on('victory', (d) => { audio.playEat(); gameOver(1, d && d.you); });
                 socket.on('match_over', (d) => { showMatchResults(d); });
                 socket.on('admin_error', (msg) => { alert('❌ Ошибка: ' + msg); });
                 socket.on('settings_updated', () => { alert('✅ Настройки сервера успешно применены!'); });
@@ -942,11 +943,11 @@
                     const foundMe = players.find(p => p.pid === myPid);
                     if (foundMe) { me = foundMe; isSpectator = false; }
 
-                    // 2. Еда
+                    // 2. Еда (формат: x, y, mass, color)
                     if (snap.f) {
                         food = [];
-                        for (let i = 0; i < snap.f.length; i += 2) {
-                            food.push({ x: snap.f[i], y: snap.f[i + 1], m: 1.3, c: '#00f0ff' });
+                        for (let i = 0; i < snap.f.length; i += 4) {
+                            food.push({ x: snap.f[i], y: snap.f[i + 1], m: snap.f[i + 2], c: snap.f[i + 3] });
                         }
                     }
 
@@ -999,6 +1000,28 @@
                                 lbEl.innerHTML = snap.hud.lb.map((p, i) =>
                                     `<div class="${p.n === (me ? me.name : '') ? 'me' : ''}">${i + 1}. ${p.n} — ${Math.round(p.m)}</div>`
                                 ).join('');
+                            }
+                        }
+
+                        // События с сервера: звуки + частицы + pop-кольца в мультиплеере
+                        if (snap.ev && Array.isArray(snap.ev)) {
+                            for (const ev of snap.ev) {
+                                const inView = me && me.cells && me.cells.length > 0 &&
+                                    Math.hypot(ev.x - me.cells[0].x, ev.y - me.cells[0].y) < 1400;
+                                if (!inView) continue;
+
+                                if (ev.type === 'eat') {
+                                    if (Math.random() < 0.25) audio.playEat();
+                                    spawnParticles(ev.x, ev.y, '#33ff66', 4);
+                                } else if (ev.type === 'split') {
+                                    audio.playSplit();
+                                    spawnParticles(ev.x, ev.y, '#00f0ff', 8);
+                                    spawnPop(ev.x, ev.y, '#00f0ff', ev.r ? ev.r * ev.r / 16 : 30);
+                                } else if (ev.type === 'pop') {
+                                    audio.playPop();
+                                    spawnParticles(ev.x, ev.y, '#ff3366', 12);
+                                    spawnPop(ev.x, ev.y, '#ff3366', ev.r ? ev.r * ev.r / 16 : 60);
+                                }
                             }
                         }
                     }
@@ -1101,7 +1124,7 @@
             'Котлета', 'Шрек', 'Виря', 'Гуру', 'Луна', 'Барсик', 'Титан', 'Бублик', 'Мираж', 'Хомяк', 'Зефир',
             'Смузи', 'Гром', 'Лаки', 'Ниндзя', 'Огурец', 'Феникс', 'Байт', 'Морж', 'Юла', 'Аква'];
 
-        let food = [], ejected = [], viruses = [], players = [], particles = [], me = null;
+        let food = [], ejected = [], viruses = [], players = [], particles = [], pops = [], trails = [], me = null;
         let mouse = { x: 0, y: 0 }, cam = { x: 0, y: 0, s: 1 }, camSmoothX = 0, camSmoothY = 0, running = false, lastT = 0, keySpace = false;
         let isBRMode = true, spectatingTarget = null, isSpectator = false;
 
@@ -1121,7 +1144,13 @@
         }
 
         function spawnFood() {
-            food.push({ x: rnd(10, WORLD - 10), y: rnd(10, WORLD - 10), m: 1.2, c: `hsl(${rndi(0, 360)}, 85%, 60%)` });
+            // Локальный режим: те же тиры, что и на сервере
+            const r = Math.random();
+            let tier;
+            if (r < 0.85) tier = { m: 5, c: '#3dff6e' };
+            else if (r < 0.97) tier = { m: 8, c: '#00d0ff' };
+            else tier = { m: 12, c: '#ff3ffd' };
+            food.push({ x: rnd(10, WORLD - 10), y: rnd(10, WORLD - 10), m: tier.m, c: tier.c });
         }
         function spawnVirus(x, y, m = VIRUS_MASS) {
             viruses.push({ x: x || rnd(200, WORLD - 200), y: y || rnd(200, WORLD - 200), m, vx: 0, vy: 0 });
@@ -1130,7 +1159,7 @@
         function initGame(nick) {
             audio.init();
             if (typeof applySettingsFromUI === 'function') applySettingsFromUI();
-            food = []; ejected = []; viruses = []; players = []; particles = [];
+            food = []; ejected = []; viruses = []; players = []; particles = []; pops = []; trails = [];
             isSpectator = false;
             document.getElementById('specBar').classList.add('hidden');
 
@@ -1272,6 +1301,7 @@
             }
             if (p === me) audio.playPop();
             spawnParticles(c.x, c.y, '#33ff66', 15);
+            spawnPop(c.x, c.y, p.color || '#33ff66', c.m * (parts + 1));
         }
 
         function spawnParticles(x, y, color, count = 8) {
@@ -1281,15 +1311,57 @@
             }
         }
 
+        // Pop-анимация: расходящееся кольцо при поедании / взрыве вируса
+        function spawnPop(x, y, color, mass) {
+            const r = radius(mass || 30);
+            pops.push({ x, y, r, maxR: r * 3.2, life: 0.45, maxLife: 0.45, c: color || '#ffffff' });
+        }
+
+        // Обновление частиц, колец и следов — общее для локального и мультиплеерного режимов
+        function updateEffects(dt) {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const pt = particles[i];
+                pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.life -= dt;
+                if (pt.life <= 0) particles.splice(i, 1);
+            }
+            for (let i = pops.length - 1; i >= 0; i--) {
+                const pp = pops[i];
+                pp.life -= dt;
+                const k = 1 - (pp.life / pp.maxLife);
+                pp.r = pp.r + (pp.maxR - pp.r) * Math.min(1, k * 6 * dt);
+                if (pp.life <= 0) pops.splice(i, 1);
+            }
+            // Следы затухают; старые удаляются
+            for (let i = trails.length - 1; i >= 0; i--) {
+                trails[i].life -= dt;
+                if (trails[i].life <= 0) trails.splice(i, 1);
+            }
+        }
+
+        // Сэмплировать след за клетками: лёгкий шлейф позади движущихся клеток
+        function sampleTrails() {
+            const TRAIL_LIFE = 0.35;     // секунды
+            const MIN_MASS = 80;         // только заметные клетки оставляют след
+            const TRAIL_CAP = 600;       // ограничение числа точек
+            if (trails.length > TRAIL_CAP) trails.splice(0, trails.length - TRAIL_CAP);
+            for (const p of players) {
+                if (p.dead) continue;
+                for (const c of p.cells) {
+                    if (c.m < MIN_MASS) continue;
+                    trails.push({ x: c.x, y: c.y, r: radius(c.m), c: p.color, life: TRAIL_LIFE, maxLife: TRAIL_LIFE });
+                }
+            }
+        }
+
         /* ================= ИИ БОТОВ ================= */
         function botThink(p, all) {
             const big = p.cells.reduce((a, b) => a.m > b.m ? a : b);
             let best = null, bestScore = -1e9;
 
-            // Искать еду
-            for (let i = 0; i < food.length; i += 4) {
-                const f = food[i], d = Math.hypot(f.x - big.x, f.y - big.y);
-                if (d < 850) { const s = 200 - d * 0.2; if (s > bestScore) { bestScore = s; best = f; } }
+            // Искать еду (предпочитают более ценные тиры)
+            for (const f of food) {
+                const d = Math.hypot(f.x - big.x, f.y - big.y);
+                if (d < 850) { const s = (f.m * 5) + 200 - d * 0.2; if (s > bestScore) { bestScore = s; best = f; } }
             }
 
             // Спасаться от безопасной зоны BR
@@ -1372,12 +1444,7 @@
                 v.vy = (v.vy || 0) * Math.pow(0.05, dt);
             }
 
-            // 3. Частицы
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const pt = particles[i];
-                pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.life -= dt;
-                if (pt.life <= 0) particles.splice(i, 1);
-            }
+            // 3. Частицы + кольца обновляются в loop() (общий updateEffects для обоих режимов)
 
             // 4. Игроки и Боты
             const all = [];
@@ -1662,6 +1729,24 @@
             }
             ctx.globalAlpha = 1.0;
 
+            // 4b. Pop-кольца (расходящиеся)
+            for (const pp of pops) {
+                if (!vis(pp.x, pp.y, pp.r)) continue;
+                ctx.globalAlpha = Math.max(0, pp.life / pp.maxLife);
+                ctx.strokeStyle = pp.c; ctx.lineWidth = Math.max(2, 5 / cam.s);
+                ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.r, 0, Math.PI * 2); ctx.stroke();
+            }
+            ctx.globalAlpha = 1.0;
+
+            // 4c. Следы за клетками (полупрозрачные затухающие диски)
+            for (const t of trails) {
+                if (!vis(t.x, t.y, t.r)) continue;
+                ctx.globalAlpha = 0.25 * (t.life / t.maxLife);
+                ctx.fillStyle = t.c;
+                ctx.beginPath(); ctx.arc(t.x, t.y, t.r * 0.92, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+
             // 5. Клетки игроков
             const cells = [];
             for (const p of players) if (!p.dead) for (const c of p.cells) cells.push({ p, c });
@@ -1860,6 +1945,9 @@
                     }
                 }
             }
+
+            // Эффекты (частицы + pop-кольца) затухают и в мультиплеере — иначе живут вечно
+            updateEffects(dt);
         }
 
         /* ================= ОСНОВНОЙ ИГРОВОЙ ЦИКЛ ================= */
@@ -1872,7 +1960,9 @@
                 } else {
                     update(dt);
                     updateHUD(dt);
+                    updateEffects(dt); // локальный режим: эффекты здесь (в update() уже не дублируем)
                 }
+                sampleTrails();
                 updateCam(dt);
             }
             render();
