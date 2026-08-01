@@ -672,8 +672,10 @@
                             <option value="avatars/пахан когда весёлый.png">Пахан (весёлый)</option>
                             <option value="avatars/пахан.png">Пахан</option>
                             <option value="avatars/урофем.png">Пахан / Урофем</option>
-                            <option value="custom">Свой URL (ссылка)...</option>
+                            <option value="file">📁 Загрузить файл с устройства...</option>
+                            <option value="custom">🌐 Свой URL (ссылка)...</option>
                         </select>
+                        <input type="file" id="setAvatarFileInput" accept="image/*" style="display:none;">
                         <input type="text" id="setCustomAvatarUrl" placeholder="Вставь URL картинки (https://...)" style="display:none;">
                     </div>
                 </div>
@@ -797,6 +799,26 @@
                         nb.style.color = '#ffcc00';
                         nb.innerText = '🟡 ОФФЛАЙН (ЛОКАЛЬНЫЙ РЕЖИМ)';
                     }
+                });
+                socket.on('lobby_state', (data) => {
+                    const nb = document.getElementById('netBadge');
+                    if (!nb) return;
+                    if (data.cd) {
+                        nb.style.color = '#00f0ff';
+                        nb.innerHTML = `<span class="status-dot" style="background:#00f0ff;box-shadow:0 0 10px #00f0ff;"></span> 🚀 СТАРТ ЧЕРЕЗ ${data.cd} СЕК`;
+                    } else {
+                        const count = (data.players ? data.players.length : 1);
+                        const min = data.minHumans || 2;
+                        nb.style.color = '#ffaa00';
+                        nb.innerHTML = `<span class="status-dot" style="background:#ffaa00;box-shadow:0 0 10px #ffaa00;"></span> ⏳ ОЖИДАНИЕ ИГРОКОВ (${count}/${min})`;
+                    }
+                });
+                socket.on('match_start', () => {
+                    document.getElementById('start').classList.add('hidden');
+                    document.getElementById('over').classList.add('hidden');
+                    document.getElementById('specBar').classList.add('hidden');
+                    running = true;
+                    isSpectator = false;
                 });
                 socket.on('joined_lobby', () => {
                     running = true;
@@ -1730,13 +1752,20 @@
             };
         }
 
+        const elAvatarFile = document.getElementById('setAvatarFileInput');
+
         const savedAva = localStorage.getItem('agario_avatar') || '';
         if (elAvatar) {
             if (savedAva && !Array.from(elAvatar.options).some(o => o.value === savedAva)) {
-                elAvatar.value = 'custom';
-                if (elCustomUrl) {
-                    elCustomUrl.style.display = 'block';
-                    elCustomUrl.value = savedAva;
+                if (savedAva.startsWith('data:')) {
+                    elAvatar.value = 'file';
+                    if (elCustomUrl) elCustomUrl.style.display = 'none';
+                } else {
+                    elAvatar.value = 'custom';
+                    if (elCustomUrl) {
+                        elCustomUrl.style.display = 'block';
+                        elCustomUrl.value = savedAva;
+                    }
                 }
             } else {
                 elAvatar.value = savedAva;
@@ -1744,12 +1773,37 @@
             elAvatar.onchange = () => {
                 if (elAvatar.value === 'custom') {
                     if (elCustomUrl) elCustomUrl.style.display = 'block';
+                } else if (elAvatar.value === 'file') {
+                    if (elCustomUrl) elCustomUrl.style.display = 'none';
+                    if (elAvatarFile) elAvatarFile.click();
                 } else {
                     if (elCustomUrl) elCustomUrl.style.display = 'none';
                     localStorage.setItem('agario_avatar', elAvatar.value);
                 }
             };
         }
+
+        if (elAvatarFile) {
+            elAvatarFile.onchange = (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const cvs = document.createElement('canvas');
+                        cvs.width = 128; cvs.height = 128;
+                        const ctx2d = cvs.getContext('2d');
+                        ctx2d.drawImage(img, 0, 0, 128, 128);
+                        const dataUrl = cvs.toDataURL('image/png');
+                        localStorage.setItem('agario_avatar', dataUrl);
+                    };
+                    img.src = evt.target.result;
+                };
+                reader.readAsDataURL(file);
+            };
+        }
+
         if (elCustomUrl) elCustomUrl.oninput = () => localStorage.setItem('agario_avatar', elCustomUrl.value.trim());
 
         function play() {
@@ -1757,12 +1811,26 @@
             const nickname = document.getElementById('nick').value.trim() || 'Игрок';
             const col = elColor ? elColor.value : '#00ffff';
             let ava = elAvatar ? elAvatar.value : '';
-            if (ava === 'custom') ava = elCustomUrl ? elCustomUrl.value.trim() : '';
+            if (ava === 'custom') {
+                ava = elCustomUrl ? elCustomUrl.value.trim() : '';
+            } else if (ava === 'file') {
+                ava = localStorage.getItem('agario_avatar') || '';
+            }
             localStorage.setItem('agario_color', col);
             localStorage.setItem('agario_avatar', ava);
             if (socket) {
                 socket.emit('join', { name: nickname, color: col, avatar: ava });
             }
+        }
+
+        function returnToMenu() {
+            overS.classList.add('hidden');
+            document.getElementById('specBar').classList.add('hidden');
+            startS.classList.remove('hidden');
+            isSpectator = false;
+            running = false;
+            me = null;
+            spectatingTarget = null;
         }
 
         function gameOver(place) {
@@ -1780,7 +1848,7 @@
         }
 
         document.getElementById('playBtn').onclick = play;
-        document.getElementById('againBtn').onclick = play;
+        document.getElementById('againBtn').onclick = returnToMenu;
         document.getElementById('nick').addEventListener('keydown', e => { if (e.key === 'Enter') play(); });
 
         const specSelect = document.getElementById('specSelect');
