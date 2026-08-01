@@ -311,7 +311,7 @@ function popCellOnVirus(p, cellIdx) {
 
 /* ---------------------- MATCH FLOW & BOT AI ---------------------- */
 function updateHost() {
-    const allHumans = Array.from(state.players.values()).filter(p => !p.isBot);
+    const allHumans = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined);
     if (allHumans.length > 0) {
         if (!allHumans.some(p => p.pid === state.hostPid)) {
             state.hostPid = allHumans[0].pid;
@@ -336,7 +336,7 @@ function startMatch() {
     state.matchStart = T();
     state.winner = null;
 
-    const participants = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && p.status === 'ready');
+    const participants = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && p.status === 'alive');
     state.startedCount = participants.length;
 
     // Spawn cells in zone for all human participants
@@ -440,7 +440,7 @@ function physicsTick(dt) {
         updateHost();
         // Allow movement for players walking around in lobby, but no eating or zone damage
         for (const p of state.players.values()) {
-            if (!p.hasJoined || (p.status !== 'ready' && p.status !== 'alive')) continue;
+            if (!p.hasJoined || p.status !== 'alive') continue;
             for (const c of p.cells) {
                 const len = Math.hypot(p.aim.x, p.aim.y) || 1;
                 const spd = speedOf(c.m);
@@ -450,7 +450,7 @@ function physicsTick(dt) {
                 c.y = clamp(c.y, 15, CFG.MAP - 15);
             }
         }
-        const humans = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && p.status === 'ready');
+        const humans = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && p.status === 'alive');
         if (humans.length >= CFG.MIN_HUMANS) {
             if (state.cdEnd === 0) {
                 state.cdEnd = T() + CFG.LOBBY_MS;
@@ -468,6 +468,11 @@ function physicsTick(dt) {
         const alive = getAlivePlayers().sort((a, b) => b.total - a.total);
         endMatch(alive[0] || null);
         return;
+    }
+
+    if (state.phase === 'live') {
+        checkMatchEnd();
+        if (state.phase !== 'live') return;
     }
 
     if (state.phase !== 'live') return;
@@ -727,8 +732,8 @@ function broadcastTick() {
 
         if (state.phase === 'lobby') {
             updateHost();
-            const totalHumans = Array.from(state.players.values()).filter(x => !x.isBot).length;
-            const joinedHumans = Array.from(state.players.values()).filter(x => !x.isBot && x.hasJoined).length;
+            const totalHumans = Array.from(state.players.values()).filter(x => !x.isBot && x.hasJoined).length;
+            const joinedHumans = totalHumans;
             const hostPlayer = state.players.get(state.hostPid);
             const isHost = (p && p.pid === state.hostPid);
             socket.emit('lobby_state', {
@@ -873,6 +878,11 @@ io.on('connection', (socket) => {
             socket.emit('admin_error', 'Только первый игрок (организатор) может начать игру!');
             return;
         }
+        const joinedHumans = Array.from(state.players.values()).filter(x => !x.isBot && x.hasJoined).length;
+        if (joinedHumans < 2) {
+            socket.emit('admin_error', 'Нужно минимум 2 игрока для старта!');
+            return;
+        }
         state.cdEnd = 0;
         startMatch();
     });
@@ -929,9 +939,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        if (player.status === 'alive') killPlayer(player, 'Disconnected');
+        if (state.phase === 'live' && player.status === 'alive') killPlayer(player, 'Disconnected');
         state.players.delete(player.pid);
         state.bySocket.delete(socket.id);
+        updateHost();
     });
 });
 

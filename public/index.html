@@ -811,13 +811,29 @@
                     const ht = document.getElementById('hostStatusText');
                     const btnH = document.getElementById('btnHostStart');
 
+                    if (hb) hb.classList.remove('hidden');
+
                     if (data.cd) {
-                        if (ht) ht.innerText = `🚀 СТАРТ ЧЕРЕЗ ${data.cd} СЕК...`;
+                        if (ht) ht.innerText = `🚀 СТАРТ ЧЕРЕЗ ${data.cd} СЕК... · Игроков: ${data.totalHumans}`;
                         if (btnH) btnH.classList.add('hidden');
                     } else if (data.isHost) {
-                        if (hb) hb.classList.remove('hidden');
-                        if (ht) ht.innerText = `👑 ТЫ ОРГАНИЗАТОР · Игроков: ${data.totalHumans}`;
-                        if (btnH) btnH.classList.remove('hidden');
+                        if (data.totalHumans >= 2) {
+                            if (ht) ht.innerText = `👑 ТЫ ОРГАНИЗАТОР · Игроков: ${data.totalHumans} (ГОТОВО К СТАРТУ)`;
+                            if (btnH) {
+                                btnH.classList.remove('hidden');
+                                btnH.disabled = false;
+                                btnH.style.opacity = '1';
+                                btnH.innerText = '🚀 НАЧАТЬ ИГРУ';
+                            }
+                        } else {
+                            if (ht) ht.innerText = `👑 ТЫ ОРГАНИЗАТОР · Игроков: ${data.totalHumans} (Нужно минимум 2 игрока для старта)`;
+                            if (btnH) {
+                                btnH.classList.remove('hidden');
+                                btnH.disabled = true;
+                                btnH.style.opacity = '0.5';
+                                btnH.innerText = '⏳ Ожидаем 2 игрока...';
+                            }
+                        }
                     } else {
                         if (btnH) btnH.classList.add('hidden');
                         if (ht) ht.innerText = `⏳ ОЖИДАНИЕ СТАРТА ИГРЫ ${data.hostName ? '(' + data.hostName + ')' : ''} · Игроков: ${data.totalHumans}`;
