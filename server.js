@@ -18,8 +18,8 @@ const CFG = {
     FOOD_NET_EVERY: 4,
 
     MAX_PLAYERS: 20,
-    MIN_HUMANS: +(process.env.MIN_HUMANS || 1),
-    LOBBY_MS: +(process.env.LOBBY_MS || 4000),
+    MIN_HUMANS: +(process.env.MIN_HUMANS || 2),
+    LOBBY_MS: +(process.env.LOBBY_MS || 5000),
     BOTS: false,
     BOT_FILL: 0,
     FOG: process.env.FOG !== '0',
@@ -804,7 +804,8 @@ io.on('connection', (socket) => {
             player.color = data.color;
         }
         if (data && typeof data.avatar === 'string' && data.avatar.trim().length > 0) {
-            player.avatar = data.avatar.trim().slice(0, 500);
+            const trimmed = data.avatar.trim();
+            player.avatar = trimmed.startsWith('data:image/') ? trimmed.slice(0, 200000) : trimmed.slice(0, 500);
         } else {
             player.avatar = null;
         }

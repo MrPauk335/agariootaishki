@@ -814,6 +814,12 @@
                     }
                 });
                 socket.on('match_start', () => {
+                    const pb = document.getElementById('playBtn');
+                    if (pb) {
+                        pb.innerText = 'В БОЙ';
+                        pb.disabled = false;
+                        pb.style.opacity = '1';
+                    }
                     document.getElementById('start').classList.add('hidden');
                     document.getElementById('over').classList.add('hidden');
                     document.getElementById('specBar').classList.add('hidden');
@@ -821,6 +827,12 @@
                     isSpectator = false;
                 });
                 socket.on('joined_lobby', () => {
+                    const pb = document.getElementById('playBtn');
+                    if (pb) {
+                        pb.innerText = '⏳ В ОЖИДАНИИ СТАРТА...';
+                        pb.disabled = true;
+                        pb.style.opacity = '0.7';
+                    }
                     running = true;
                     isSpectator = false;
                     lastT = performance.now();
@@ -1797,6 +1809,9 @@
                         ctx2d.drawImage(img, 0, 0, 128, 128);
                         const dataUrl = cvs.toDataURL('image/png');
                         localStorage.setItem('agario_avatar', dataUrl);
+                        if (typeof avatarCache !== 'undefined') {
+                            avatarCache[dataUrl] = img;
+                        }
                     };
                     img.src = evt.target.result;
                 };
@@ -1827,6 +1842,12 @@
             overS.classList.add('hidden');
             document.getElementById('specBar').classList.add('hidden');
             startS.classList.remove('hidden');
+            const pb = document.getElementById('playBtn');
+            if (pb) {
+                pb.innerText = 'В БОЙ';
+                pb.disabled = false;
+                pb.style.opacity = '1';
+            }
             isSpectator = false;
             running = false;
             me = null;
