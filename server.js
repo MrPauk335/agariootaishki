@@ -817,7 +817,13 @@ function broadcastTick() {
             e: visibleEjects,
             f: foodArray,
             r: roster,
-            z: { x: Math.round(curZone.x), y: Math.round(curZone.y), r: Math.round(curZone.r), nx: Math.round(state.zone.nx), ny: Math.round(state.zone.ny), nr: Math.round(state.zone.nr), st: state.zone.st },
+            z: {
+                x: Math.round(curZone.x), y: Math.round(curZone.y), r: Math.round(curZone.r),
+                nx: state.zone ? Math.round(state.zone.nx) : Math.round(curZone.x),
+                ny: state.zone ? Math.round(state.zone.ny) : Math.round(curZone.y),
+                nr: state.zone ? Math.round(state.zone.nr) : Math.round(curZone.r),
+                st: state.zone ? state.zone.st : 'wait',
+            },
             hud: { rank: myRank, mass: myMass, kills: myKills, alive: getAlivePlayers().length, time: Math.max(0, Math.floor((CFG.MATCH_MS - (T() - state.matchStart)) / 1000)), lb: leaderboard },
             ev: state.events,
         });
