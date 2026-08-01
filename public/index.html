@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
     <title>Огарио Royale — Hardcore Battle Royale</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
@@ -1465,6 +1466,18 @@
             ctx.lineWidth = 4 / cam.s; ctx.strokeStyle = '#33ff66'; ctx.stroke();
         }
 
+        const avatarCache = {};
+        function getAvatarImg(url) {
+            if (!url) return null;
+            if (!avatarCache[url]) {
+                const img = new Image();
+                img.src = url;
+                avatarCache[url] = img;
+            }
+            const img = avatarCache[url];
+            return (img && img.complete && img.naturalWidth > 0) ? img : null;
+        }
+
         function render() {
             const dpr = window.devicePixelRatio || 1;
             ctx.save();
@@ -1535,7 +1548,19 @@
 
                 ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 6.2832);
                 ctx.fillStyle = p.color; ctx.fill();
-                ctx.lineWidth = Math.max(3, r * 0.06); ctx.strokeStyle = p.dark; ctx.stroke();
+
+                if (p.avatar) {
+                    const avImg = getAvatarImg(p.avatar);
+                    if (avImg) {
+                        ctx.save();
+                        ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.clip();
+                        ctx.drawImage(avImg, c.x - r, c.y - r, r * 2, r * 2);
+                        ctx.restore();
+                    }
+                }
+
+                ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 6.2832);
+                ctx.lineWidth = Math.max(3, r * 0.06); ctx.strokeStyle = p.dark || '#000'; ctx.stroke();
 
                 if (r * cam.s > 15) {
                     ctx.font = `700 ${Math.max(11, r * 0.33)}px Segoe UI, sans-serif`;
