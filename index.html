@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ragdoll Physics Sandbox</title>
+    <link rel="icon" href="data:,">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #0e1116;
+            font-family: system-ui, sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #hud {
+            position: fixed;
+            left: 14px;
+            top: 14px;
+            color: #dfe6f0;
+            font-size: 13px;
+            background: rgba(12, 16, 22, .72);
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, .08);
+            line-height: 1.7;
+            backdrop-filter: blur(6px);
+            user-select: none;
+            max-width: 320px;
+        }
+
+        #hud b {
+            color: #7fd1ff;
+        }
+
+        kbd {
+            background: #1b2230;
+            border: 1px solid #2e3a4d;
+            border-bottom-width: 2px;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 12px;
+            color: #a8c8ff;
+        }
+
+        #stats {
+            position: fixed;
+            right: 14px;
+            top: 14px;
+            color: #8fa3bd;
+            font-size: 12px;
+            background: rgba(12, 16, 22, .72);
+            padding: 8px 12px;
+            border-radius: 8px;
+        }
+    </style>
+    <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+  }
+}
+</script>
+</head>
+
+<body>
+    <div id="hud">
+        <b>Ragdoll Sandbox</b><br>
+        <kbd>ЛКМ</kbd> тащить/швырять части тела<br>
+        <kbd>колесо</kbd> при захвате — дальность<br>
+        <kbd>ПКМ</kbd> вращать камеру<br>
+        <kbd>Space</kbd> запустить нового человечка<br>
+        <kbd>B</kbd> выстрелить шаром<br>
+        <kbd>C</kbd> ящики &nbsp; <kbd>T</kbd> slow-mo &nbsp; <kbd>R</kbd> сброс
+    </div>
+    <div id="stats"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import * as CANNON from 'cannon-es';
+
+        /* ================== РЕНДЕР ================== */
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0e1116);
+        scene.fog = new THREE.Fog(0x0e1116, 30, 110);
+
+        const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 500);
+        camera.position.set(7, 4.5, 9);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1.4, 0);
+        controls.enableDamping = true;
+        controls.maxPolarAngle = Math.PI * 0.49;
+        controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+
+        scene.add(new THREE.HemisphereLight(0x9ec6ff, 0x20262f, 0.55));
+        const sun = new THREE.DirectionalLight(0xfff2dd, 2.2);
+        sun.position.set(12, 18, 8);
+        sun.castShadow = true;
+        sun.shadow.mapSize.set(2048, 2048);
+        sun.shadow.camera.left = -24;
+        sun.shadow.camera.right = 24;
+        sun.shadow.camera.top = 24;
+        sun.shadow.camera.bottom = -24;
+        sun.shadow.camera.near = 1;
+        sun.shadow.camera.far = 60;
+        sun.shadow.bias = -0.0008;
+        scene.add(sun);
+
+        /* ================== ФИЗИКА ================== */
+        const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
+        world.broadphase = new CANNON.SAPBroadphase(world);
+        world.solver = new CANNON.GSSolver();
+        world.solver.iterations = 30;
+        world.solver.tolerance = 0.001;
+        world.allowSleep = true;
+        world.defaultContactMaterial.friction = 0.4;
+        world.defaultContactMaterial.restitution = 0.08;
+
+        const matGround = new CANNON.Material('ground');
+        const matFlesh = new CANNON.Material('flesh');
+        world.addContactMaterial(new CANNON.ContactMaterial(matGround, matFlesh, { friction: 0.65, restitution: 0.03 }));
+        world.addContactMaterial(new CANNON.ContactMaterial(matFlesh, matFlesh, { friction: 0.35, restitution: 0.02 }));
+
+        /* ================== УТИЛИТЫ ================== */
+        const syncList = [];   // { mesh, body }
+        const grabbables = [];  // меши, которые можно хватать
+        const dynamic = [];   // всё динамическое (для reset)
+
+        function link(mesh, body, grabbable = true) {
+            scene.add(mesh);
+            world.addBody(body);
+            syncList.push({ mesh, body });
+            if (grabbable) grabbables.push(mesh);
+        }
+
+        function staticBox(w, h, d, pos, rot = [0, 0, 0], color = 0x39445a) {
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(w, h, d),
+                new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.05 })
+            );
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            const body = new CANNON.Body({
+                mass: 0,
+                material: matGround,
+                shape: new CANNON.Box(new CANNON.Vec3(w / 2, h / 2, d / 2))
+            });
+            body.position.set(pos[0], pos[1], pos[2]);
+            const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rot[0], rot[1], rot[2]));
+            body.quaternion.set(q.x, q.y, q.z, q.w);
+            link(mesh, body, false);
+            return body;
+        }
+
+        /* --- пол --- */
+        {
+            const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: matGround });
+            groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+            world.addBody(groundBody);
+
+            const g = new THREE.Mesh(
+                new THREE.PlaneGeometry(200, 200),
+                new THREE.MeshStandardMaterial({ color: 0x1a2130, roughness: 0.95 })
+            );
+            g.rotation.x = -Math.PI / 2;
+            g.receiveShadow = true;
+            scene.add(g);
+
+            const grid = new THREE.GridHelper(200, 200, 0x2c3a52, 0x222c3d);
+            grid.position.y = 0.002;
+            scene.add(grid);
+        }
+
+        /* --- арена: пандус + лестница + столбы --- */
+        staticBox(7, 0.4, 5, [-9, 1.6, 0], [0, 0, -0.32], 0x44506b);
+        for (let i = 0; i < 6; i++) {
+            staticBox(3, 0.4, 1.4, [10, 0.2 + i * 0.4, -3 + i * 1.4], [0, 0, 0], 0x3d4860);
+        }
+        staticBox(0.5, 3, 0.5, [2, 1.5, -6]);
+        staticBox(0.5, 3, 0.5, [-3, 1.5, 6]);
+
+        /* ================== RAGDOLL ================== */
+        const PALETTE = [0xff7a59, 0x6cc4ff, 0xffd166, 0x9d7bff, 0x59e0a8, 0xff8fd0];
+        const ragdolls = [];
+        let ragdollCounter = 0;
+
+        function limbMesh(len, thick, axis, color) {
+            const r = thick * 0.46;
+            const geo = new THREE.CapsuleGeometry(r, Math.max(0.001, len - 2 * r), 6, 10);
+            if (axis === 'x') geo.rotateZ(Math.PI / 2);
+            const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.05 }));
+            m.castShadow = true;
+            m.receiveShadow = true;
+            return m;
+        }
+
+        function createRagdoll(pos = [0, 4, 0], scale = 1, velocity = [0, 0, 0]) {
+            const color = PALETTE[ragdollCounter % PALETTE.length];
+            // своя группа коллизий => части одного тела не самопересекаются,
+            // но разные "человечки" сталкиваются между собой
+            const group = 1 << (2 + (ragdollCounter % 12));
+            ragdollCounter++;
+
+            const shoulders = 0.5 * scale;
+            const upperArmL = 0.42 * scale, lowerArmL = 0.42 * scale, armT = 0.19 * scale;
+            const neckL = 0.1 * scale, headR = 0.24 * scale;
+            const bodyL = 0.62 * scale, pelvisL = 0.4 * scale;
+            const upLegL = 0.5 * scale, loLegL = 0.5 * scale, legT = 0.2 * scale;
+
+            const A = Math.PI / 4, B = Math.PI / 3, TW = Math.PI / 8; // лимиты шарниров
+            const bodies = [], constraints = [], meshes = [];
+
+            function mk(mass, shape, p, mesh) {
+                const b = new CANNON.Body({
+                    mass, shape, material: matFlesh,
+                    linearDamping: 0.02, angularDamping: 0.12,
+                    collisionFilterGroup: group,
+                    collisionFilterMask: -1 & ~group,
+                    allowSleep: true, sleepSpeedLimit: 0.25, sleepTimeLimit: 1.0
+                });
+                b.position.set(p[0], p[1], p[2]);
+                bodies.push(b);
+                meshes.push(mesh);
+                link(mesh, b, true);
+                return b;
+            }
+            const box = (hx, hy, hz) => new CANNON.Box(new CANNON.Vec3(hx, hy, hz));
+
+            // --- тела ---
+            const loLegLeft = mk(1.6, box(legT / 2, loLegL / 2, legT / 2), [-shoulders / 2, loLegL / 2, 0], limbMesh(loLegL, legT, 'y', color));
+            const loLegRight = mk(1.6, box(legT / 2, loLegL / 2, legT / 2), [shoulders / 2, loLegL / 2, 0], limbMesh(loLegL, legT, 'y', color));
+            const upLegLeft = mk(2.2, box(legT / 2, upLegL / 2, legT / 2), [-shoulders / 2, loLegL + upLegL / 2, 0], limbMesh(upLegL, legT, 'y', color));
+            const upLegRight = mk(2.2, box(legT / 2, upLegL / 2, legT / 2), [shoulders / 2, loLegL + upLegL / 2, 0], limbMesh(upLegL, legT, 'y', color));
+
+            const pelvisY = loLegL + upLegL + pelvisL / 2;
+            const pelvisMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(shoulders, pelvisL, legT * 1.1),
+                new THREE.MeshStandardMaterial({ color: 0x2f3a4e, roughness: 0.7 })
+            );
+            pelvisMesh.castShadow = true;
+            pelvisMesh.receiveShadow = true;
+            const pelvis = mk(3.2, box(shoulders / 2, pelvisL / 2, legT / 2), [0, pelvisY, 0], pelvisMesh);
+
+            const bodyY = pelvisY + pelvisL / 2 + bodyL / 2;
+            const torsoMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(shoulders * 1.05, bodyL, legT * 1.15),
+                new THREE.MeshStandardMaterial({ color, roughness: 0.55 })
+            );
+            torsoMesh.castShadow = true;
+            torsoMesh.receiveShadow = true;
+            const torso = mk(4.5, box(shoulders / 2, bodyL / 2, legT / 2), [0, bodyY, 0], torsoMesh);
+
+            const headMesh = new THREE.Mesh(
+                new THREE.SphereGeometry(headR, 20, 14),
+                new THREE.MeshStandardMaterial({ color: 0xf1c9a5, roughness: 0.5 })
+            );
+            headMesh.castShadow = true;
+            headMesh.receiveShadow = true;
+            const head = mk(1.4, new CANNON.Sphere(headR), [0, bodyY + bodyL / 2 + neckL + headR, 0], headMesh);
+
+            const shoulderY = bodyY + bodyL / 2 - armT * 0.4;
+            const upArmLeft = mk(1.1, box(upperArmL / 2, armT / 2, armT / 2), [-shoulders / 2 - upperArmL / 2, shoulderY, 0], limbMesh(upperArmL, armT, 'x', color));
+            const upArmRight = mk(1.1, box(upperArmL / 2, armT / 2, armT / 2), [shoulders / 2 + upperArmL / 2, shoulderY, 0], limbMesh(upperArmL, armT, 'x', color));
+            const loArmLeft = mk(0.9, box(lowerArmL / 2, armT / 2, armT / 2), [-shoulders / 2 - upperArmL - lowerArmL / 2, shoulderY, 0], limbMesh(lowerArmL, armT, 'x', 0xf1c9a5));
+            const loArmRight = mk(0.9, box(lowerArmL / 2, armT / 2, armT / 2), [shoulders / 2 + upperArmL + lowerArmL / 2, shoulderY, 0], limbMesh(lowerArmL, armT, 'x', 0xf1c9a5));
+
+            // сдвиг скелета в точку спавна + начальная скорость
+            for (const b of bodies) {
+                b.position.x += pos[0];
+                b.position.y += pos[1];
+                b.position.z += pos[2];
+                b.velocity.set(velocity[0], velocity[1], velocity[2]);
+            }
+
+            // --- шарниры ConeTwist с лимитами углов ---
+            function cone(bA, pA, bB, pB, axA, axB, angle, twist) {
+                const c = new CANNON.ConeTwistConstraint(bA, bB, {
+                    pivotA: new CANNON.Vec3(pA[0], pA[1], pA[2]),
+                    pivotB: new CANNON.Vec3(pB[0], pB[1], pB[2]),
+                    axisA: new CANNON.Vec3(axA[0], axA[1], axA[2]),
+                    axisB: new CANNON.Vec3(axB[0], axB[1], axB[2]),
+                    angle: angle, twistAngle: twist, maxForce: 1e6, collideConnected: false
+                });
+                world.addConstraint(c);
+                constraints.push(c);
+            }
+            const Y = [0, 1, 0], X = [1, 0, 0];
+
+            cone(head, [0, -headR - neckL / 2, 0], torso, [0, bodyL / 2, 0], Y, Y, A * 0.7, TW);              // шея
+            cone(pelvis, [0, pelvisL / 2, 0], torso, [0, -bodyL / 2, 0], Y, Y, Math.PI / 9, TW);              // позвоночник
+            cone(upLegLeft, [0, upLegL / 2, 0], pelvis, [-shoulders / 2, -pelvisL / 2, 0], Y, Y, B, TW);     // бёдра
+            cone(upLegRight, [0, upLegL / 2, 0], pelvis, [shoulders / 2, -pelvisL / 2, 0], Y, Y, B, TW);
+            cone(loLegLeft, [0, loLegL / 2, 0], upLegLeft, [0, -upLegL / 2, 0], Y, Y, A, TW * 0.4);         // колени
+            cone(loLegRight, [0, loLegL / 2, 0], upLegRight, [0, -upLegL / 2, 0], Y, Y, A, TW * 0.4);
+            cone(torso, [-shoulders / 2, bodyL / 2, 0], upArmLeft, [upperArmL / 2, 0, 0], X, X, B, TW);     // плечи
+            cone(torso, [shoulders / 2, bodyL / 2, 0], upArmRight, [-upperArmL / 2, 0, 0], X, X, B, TW);
+            cone(loArmLeft, [lowerArmL / 2, 0, 0], upArmLeft, [-upperArmL / 2, 0, 0], X, X, A, TW * 0.4);  // локти
+            cone(loArmRight, [-lowerArmL / 2, 0, 0], upArmRight, [upperArmL / 2, 0, 0], X, X, A, TW * 0.4);
+
+            const rd = { bodies, constraints, meshes };
+            ragdolls.push(rd);
+            dynamic.push(rd);
+            if (ragdolls.length > 8) removeEntity(ragdolls[0]);
+            return rd;
+        }
+
+        function removeEntity(e) {
+            for (const c of (e.constraints || [])) world.removeConstraint(c);
+            for (const b of (e.bodies || [])) world.removeBody(b);
+            for (const m of (e.meshes || [])) {
+                scene.remove(m);
+                const gi = grabbables.indexOf(m);
+                if (gi >= 0) grabbables.splice(gi, 1);
+                for (let i = syncList.length - 1; i >= 0; i--) {
+                    if (syncList[i].mesh === m) syncList.splice(i, 1);
+                }
+            }
+            let i = ragdolls.indexOf(e);
+            if (i >= 0) ragdolls.splice(i, 1);
+            i = dynamic.indexOf(e);
+            if (i >= 0) dynamic.splice(i, 1);
+        }
+
+        /* ================== СНАРЯДЫ И ЯЩИКИ ================== */
+        function shootBall() {
+            const r = 0.22;
+            const mesh = new THREE.Mesh(
+                new THREE.SphereGeometry(r, 18, 12),
+                new THREE.MeshStandardMaterial({ color: 0xdde6f2, roughness: 0.25, metalness: 0.6 })
+            );
+            mesh.castShadow = true;
+            const body = new CANNON.Body({ mass: 6, shape: new CANNON.Sphere(r), material: matFlesh });
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            body.position.set(camera.position.x + dir.x, camera.position.y + dir.y, camera.position.z + dir.z);
+            body.velocity.set(dir.x * 32, dir.y * 32, dir.z * 32);
+            const e = { bodies: [body], meshes: [mesh], constraints: [] };
+            link(mesh, body, true);
+            dynamic.push(e);
+            setTimeout(() => removeEntity(e), 12000);
+        }
+
+        function spawnCrates() {
+            for (let i = 0; i < 8; i++) {
+                const sz = 0.35 + Math.random() * 0.35;
+                const mesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(sz, sz, sz),
+                    new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 0.9 })
+                );
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                const body = new CANNON.Body({
+                    mass: sz * 6,
+                    shape: new CANNON.Box(new CANNON.Vec3(sz / 2, sz / 2, sz / 2)),
+                    material: matFlesh
+                });
+                body.position.set((Math.random() - 0.5) * 4, 3 + i * 0.9, (Math.random() - 0.5) * 4);
+                const e = { bodies: [body], meshes: [mesh], constraints: [] };
+                link(mesh, body, true);
+                dynamic.push(e);
+            }
+        }
+
+        /* ================== ЗАХВАТ МЫШЬЮ ================== */
+        const raycaster = new THREE.Raycaster();
+        const ndc = new THREE.Vector2();
+        const jointBody = new CANNON.Body({
+            mass: 0, shape: new CANNON.Sphere(0.02),
+            collisionFilterGroup: 0, collisionFilterMask: 0
+        });
+        world.addBody(jointBody);
+        let grabC = null, grabB = null, grabDist = 0;
+
+        function bodyOfMesh(mesh) {
+            const e = syncList.find(o => o.mesh === mesh);
+            return e ? e.body : null;
+        }
+        function setNDC(ev) {
+            ndc.x = (ev.clientX / innerWidth) * 2 - 1;
+            ndc.y = -(ev.clientY / innerHeight) * 2 + 1;
+        }
+
+        renderer.domElement.addEventListener('pointerdown', ev => {
+            if (ev.button !== 0) return;
+            setNDC(ev);
+            raycaster.setFromCamera(ndc, camera);
+            const hit = raycaster.intersectObjects(grabbables, false)[0];
+            if (!hit) return;
+            const body = bodyOfMesh(hit.object);
+            if (!body || body.mass === 0) return;
+
+            grabB = body;
+            grabDist = hit.distance;
+            jointBody.position.set(hit.point.x, hit.point.y, hit.point.z);
+            const local = body.pointToLocalFrame(new CANNON.Vec3(hit.point.x, hit.point.y, hit.point.z));
+            grabC = new CANNON.PointToPointConstraint(body, local, jointBody, new CANNON.Vec3(0, 0, 0), 900);
+            world.addConstraint(grabC);
+            controls.enabled = false;
+        });
+
+        addEventListener('pointermove', ev => {
+            if (!grabC) return;
+            setNDC(ev);
+            raycaster.setFromCamera(ndc, camera);
+            const p = raycaster.ray.origin.clone().add(raycaster.ray.direction.clone().multiplyScalar(grabDist));
+            jointBody.position.set(p.x, p.y, p.z);
+            grabB.wakeUp();
+        });
+
+        addEventListener('pointerup', () => {
+            if (grabC) {
+                world.removeConstraint(grabC);
+                grabC = null;
+                grabB = null;
+            }
+            controls.enabled = true;
+        });
+
+        renderer.domElement.addEventListener('wheel', ev => {
+            if (grabC) {
+                grabDist = Math.max(1, grabDist + ev.deltaY * 0.004);
+                ev.preventDefault();
+            }
+        }, { passive: false });
+        renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+
+        /* ================== УПРАВЛЕНИЕ ================== */
+        let timeScale = 1;
+        addEventListener('keydown', e => {
+            const k = e.code;
+            if (k === 'Space') {
+                e.preventDefault();
+                const dir = new THREE.Vector3();
+                camera.getWorldDirection(dir);
+                createRagdoll(
+                    [camera.position.x + dir.x * 2, Math.max(2.5, camera.position.y), camera.position.z + dir.z * 2],
+                    0.95 + Math.random() * 0.25,
+                    [dir.x * 10, 2 + Math.random() * 3, dir.z * 10]
+                );
+            }
+            if (k === 'KeyB') shootBall();
+            if (k === 'KeyC') spawnCrates();
+            if (k === 'KeyT') timeScale = (timeScale === 1) ? 0.18 : 1;
+            if (k === 'KeyR') {
+                [...dynamic].forEach(removeEntity);
+                createRagdoll([0, 4, 0], 1);
+            }
+        });
+
+        /* ================== ЦИКЛ ================== */
+        const statsEl = document.getElementById('stats');
+        let last = performance.now(), acc = 0, fpsT = 0, frames = 0;
+        const FIXED = 1 / 120;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const now = performance.now();
+            const dt = Math.min((now - last) / 1000, 0.1);
+            last = now;
+
+            acc += dt * timeScale;
+            let steps = 0;
+            while (acc >= FIXED && steps < 10) {
+                world.step(FIXED);
+                acc -= FIXED;
+                steps++;
+            }
+
+            for (const o of syncList) {
+                o.mesh.position.copy(o.body.position);
+                o.mesh.quaternion.copy(o.body.quaternion);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+
+            frames++;
+            fpsT += dt;
+            if (fpsT > 0.5) {
+                const fps = Math.round(frames / fpsT);
+                frames = 0;
+                fpsT = 0;
+                statsEl.textContent = 'FPS ' + fps + ' · тел: ' + world.bodies.length +
+                    ' · ragdolls: ' + ragdolls.length + (timeScale < 1 ? ' · SLOW-MO' : '');
+            }
+        }
+
+        addEventListener('resize', () => {
+            camera.aspect = innerWidth / innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+        });
+
+        createRagdoll([0, 4, 0], 1);
+        createRagdoll([-9, 5, 0], 1.1, [3, 0, 0]);
+        animate();
+    </script>
+</body>
+
+</html>

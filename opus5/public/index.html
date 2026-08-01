@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>Огарио Royale — Hardcore Battle Royale</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #080911;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: #fff;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* VIGNETTE WARNING */
+        #vignette {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 4;
+            box-shadow: inset 0 0 100px rgba(255, 0, 85, 0.7);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            left: 16px;
+            bottom: 16px;
+            font-size: 15px;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.8);
+            line-height: 1.6;
+            pointer-events: none;
+            z-index: 5;
+            background: rgba(14, 18, 27, 0.65);
+            padding: 10px 16px;
+            border-radius: 12px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .hud-val {
+            font-weight: 800;
+            color: #00f0ff;
+        }
+
+        /* LEADERBOARD */
+        #lb {
+            position: absolute;
+            right: 16px;
+            top: 16px;
+            width: 210px;
+            background: rgba(14, 18, 27, 0.75);
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-size: 13px;
+            line-height: 1.6;
+            pointer-events: none;
+            z-index: 5;
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #lb h3 {
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 8px;
+            letter-spacing: 1.5px;
+            color: #a78bfa;
+            text-transform: uppercase;
+        }
+
+        #lb .me {
+            color: #ffe06a;
+            font-weight: 700;
+        }
+
+        /* KILLFEED */
+        #killfeed {
+            position: absolute;
+            left: 16px;
+            top: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .kf-item {
+            background: rgba(14, 18, 27, 0.7);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            border-left: 3px solid #ff0055;
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.3s forwards;
+        }
+
+        #hint {
+            position: absolute;
+            left: 50%;
+            top: 16px;
+            transform: translateX(-50%);
+            font-size: 13px;
+            opacity: 0.7;
+            pointer-events: none;
+            z-index: 5;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 6px 16px;
+            border-radius: 20px;
+        }
+
+        /* SPECTATOR BAR */
+        #specBar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 6;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(18, 21, 38, 0.85);
+            padding: 8px 18px;
+            border-radius: 30px;
+            border: 1px solid #00f0ff;
+            backdrop-filter: blur(6px);
+        }
+
+        .spec-btn {
+            background: #00f0ff;
+            color: #000;
+            font-size: 12px;
+            font-weight: 800;
+            padding: 6px 14px;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+
+        .spec-btn:hover {
+            background: #6ee7ff;
+            transform: scale(1.05);
+        }
+
+        .spec-select {
+            background: #161b26;
+            color: #00f0ff;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 6px 12px;
+            border: 1px solid #00f0ff;
+            border-radius: 16px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .spec-select option {
+            background: #101420;
+            color: #fff;
+        }
+
+        /* OVERLAY SCREENS */
+        .screen {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            background: rgba(8, 9, 17, 0.88);
+            backdrop-filter: blur(8px);
+            z-index: 10;
+        }
+
+        .screen h1 {
+            font-size: 48px;
+            font-weight: 900;
+            letter-spacing: 4px;
+            background: linear-gradient(90deg, #00f0ff, #a78bfa, #ff0055);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+        }
+
+        input,
+        button {
+            font: inherit;
+            border: none;
+            border-radius: 12px;
+            padding: 14px 24px;
+            outline: none;
+        }
+
+        input {
+            width: 280px;
+            text-align: center;
+            background: #161b26;
+            color: #fff;
+            border: 1px solid #2a3145;
+            font-size: 16px;
+        }
+
+        input:focus {
+            border-color: #00f0ff;
+            box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+        }
+
+        button.main-btn {
+            background: linear-gradient(135deg, #00f0ff, #7000ff);
+            color: #fff;
+            font-weight: 800;
+            font-size: 16px;
+            cursor: pointer;
+            width: 280px;
+            transition: 0.2s;
+            box-shadow: 0 8px 25px rgba(0, 240, 255, 0.25);
+        }
+
+        button.main-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(0, 240, 255, 0.4);
+        }
+
+        .mode-select {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 4px;
+        }
+
+        .mode-btn {
+            background: #161b26;
+            color: #8a91b4;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid #2a3145;
+            transition: 0.15s;
+        }
+
+        .mode-btn.active {
+            background: #00f0ff;
+            color: #000;
+            font-weight: 700;
+            border-color: #00f0ff;
+        }
+
+        .small {
+            font-size: 13px;
+            opacity: 0.65;
+            text-align: center;
+            max-width: 340px;
+            line-height: 1.6;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* ROUND SETTINGS MODAL */
+        .settings-box {
+            background: #101420;
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 520px;
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(12px);
+        }
+
+        .settings-box h2 {
+            font-size: 22px;
+            color: #00f0ff;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .preset-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .preset-btn {
+            background: #192030;
+            color: #a0aec0;
+            border: 1px solid #2d3748;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+
+        .preset-btn.active,
+        .preset-btn:hover {
+            background: #00f0ff;
+            color: #000;
+            font-weight: 700;
+            border-color: #00f0ff;
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 16px;
+            width: 100%;
+        }
+
+        .set-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 12px;
+            color: #cbd5e0;
+        }
+
+        .set-group label {
+            font-weight: 600;
+        }
+
+        .set-group input {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 8px;
+        }
+
+        /* MOBILE TOUCH CONTROLS */
+        #touchControls {
+            position: absolute;
+            right: 20px;
+            bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 7;
+        }
+
+        .touch-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            color: #fff;
+            font-weight: 800;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+            touch-action: manipulation;
+        }
+
+        .touch-btn:active {
+            background: rgba(0, 240, 255, 0.4);
+            transform: scale(0.95);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="c"></canvas>
+    <div id="vignette"></div>
+
+    <!-- HUD -->
+    <div id="hud">
+        <div>Масса: <span id="valMass" class="hud-val">0</span></div>
+        <div>Выжило: <span id="valAlive" class="hud-val">0</span></div>
+        <div>Зона: <span id="valZone" class="hud-val">00:00</span></div>
+    </div>
+
+    <div id="lb">
+        <h3>Лидеры</h3>
+        <div id="lbList"></div>
+    </div>
+    <div id="killfeed"></div>
+    <div id="hint">Мышь — направление · Space — разделиться · W — выброс массы</div>
+
+    <!-- SPECTATOR TOOLBAR -->
+    <div id="specBar" class="hidden">
+        <span>👁️ Наблюдение:</span>
+        <button id="specPrev" class="spec-btn">◀ Пред</button>
+        <select id="specSelect" class="spec-select">
+            <option value="">Все игроки...</option>
+        </select>
+        <button id="specNext" class="spec-btn">След ▶</button>
+    </div>
+
+    <!-- TOUCH CONTROLS -->
+    <div id="touchControls" class="hidden">
+        <div id="btnTouchSplit" class="touch-btn">SPLIT</div>
+        <div id="btnTouchEject" class="touch-btn">EJECT</div>
+    </div>
+
+    <!-- START SCREEN -->
+    <div id="start" class="screen">
+        <h1>ОГАРИО ROYALE</h1>
+        <div id="netBadge" style="font-size:13px; font-weight:bold; color:#ffcc00; margin-bottom:12px;">🟡 ОФФЛАЙН (ЛОКАЛЬНЫЙ РЕЖИМ)</div>
+        <div class="mode-select">
+            <div id="modeBR" class="mode-btn active">BATTLE ROYALE (ЗОНА)</div>
+            <div id="modeClassic" class="mode-btn">КЛАССИКА</div>
+        </div>
+        <input id="nick" maxlength="14" placeholder="Твой ник" value="Игрок">
+        <div style="display:flex; gap:10px;">
+            <button id="playBtn" class="main-btn" style="width:190px;">В БОЙ</button>
+            <button id="openSettingsBtn" class="mode-btn" style="padding:14px 16px; font-weight:700; background:#1b2233;">⚙️ НАСТРОЙКИ</button>
+        </div>
+        <div class="small">
+            Поедай точки и соперников. Избегай токсичной зоны вне безопасного круга! Зелёные вирусы разрывают гигантов.
+        </div>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settingsModal" class="screen hidden" style="z-index: 20; background: rgba(5, 7, 13, 0.92);">
+        <div class="settings-box">
+            <h2>⚙️ НАСТРОЙКИ РАУНДА</h2>
+
+            <div class="preset-row">
+                <button type="button" class="preset-btn active" id="presetFast">⚡ Супер-быстрая (5с / 15с)</button>
+                <button type="button" class="preset-btn" id="presetUltra">🔥 Ураган (2с / 10с)</button>
+                <button type="button" class="preset-btn" id="presetNormal">🐢 Обычная (15с / 45с)</button>
+            </div>
+
+            <div class="settings-grid">
+                <div class="set-group">
+                    <label for="setZoneWait">Пауза до сжатия (сек)</label>
+                    <input type="number" id="setZoneWait" value="5" min="0" max="60">
+                </div>
+                <div class="set-group">
+                    <label for="setZoneDuration">Фаза сжатия зоны (сек)</label>
+                    <input type="number" id="setZoneDuration" value="15" min="5" max="120">
+                </div>
+                <div class="set-group">
+                    <label for="setZoneDps">Базовый урон зоны (DPS)</label>
+                    <input type="number" id="setZoneDps" value="3" min="1" max="50">
+                </div>
+                <div class="set-group">
+                    <label for="setBotCount">Количество ботов</label>
+                    <input type="number" id="setBotCount" value="28" min="0" max="60">
+                </div>
+                <div class="set-group">
+                    <label for="setStartMass">Стартовая масса</label>
+                    <input type="number" id="setStartMass" value="30" min="10" max="500">
+                </div>
+                <div class="set-group">
+                    <label for="setFoodCount">Количество еды</label>
+                    <input type="number" id="setFoodCount" value="1100" min="200" max="3000">
+                </div>
+                <div class="set-group">
+                    <label for="setVirusCount">Количество вирусов</label>
+                    <input type="number" id="setVirusCount" value="24" min="4" max="80">
+                </div>
+                <div class="set-group">
+                    <label for="setMatchTime">Матч (минут)</label>
+                    <input type="number" id="setMatchTime" value="5" min="1" max="30">
+                </div>
+            </div>
+
+            <div style="display:flex; gap:12px; margin-top: 8px;">
+                <button id="saveSettingsBtn" class="main-btn" style="width: 170px;">СОХРАНИТЬ</button>
+                <button id="closeSettingsBtn" class="main-btn" style="width: 110px; background: #2a3145;">ЗАКРЫТЬ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- OVER SCREEN -->
+    <div id="over" class="screen hidden">
+        <h1 id="overTitle">ТЕБЯ СЪЕЛИ</h1>
+        <div id="overInfo" class="small"></div>
+        <div style="display:flex; gap:12px;">
+            <button id="againBtn" class="main-btn" style="width:160px;">ЕЩЁ РАЗ</button>
+            <button id="specBtn" class="main-btn"
+                style="width:160px; background:#161b26; border:1px solid #00f0ff;">СМОТРЕТЬ</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        /* ================= НАСТРОЙКИ & КОНСТАНТЫ ================= */
+        let WORLD = 4000;
+        let socket = null, isMultiplayer = false, myPid = null;
+        if (typeof io !== 'undefined') {
+            try {
+                socket = io();
+                socket.on('welcome', (data) => {
+                    isMultiplayer = true;
+                    myPid = data.pid;
+                    WORLD = data.mapSize || 4000;
+                    const nb = document.getElementById('netBadge');
+                    if (nb) {
+                        nb.style.color = '#00ff66';
+                        nb.innerText = '🟢 МУЛЬТИПЛЕЕР ПОДКЛЮЧЕН (ОНЛАЙН СЕРВЕР)';
+                    }
+                });
+                socket.on('disconnect', () => {
+                    isMultiplayer = false;
+                    const nb = document.getElementById('netBadge');
+                    if (nb) {
+                        nb.style.color = '#ffcc00';
+                        nb.innerText = '🟡 ОФФЛАЙН (ЛОКАЛЬНЫЙ РЕЖИМ)';
+                    }
+                });
+                socket.on('joined_lobby', () => {
+                    running = true;
+                    isSpectator = false;
+                    lastT = performance.now();
+                });
+                socket.on('joined_spectator', () => {
+                    running = true;
+                    isSpectator = true;
+                    lastT = performance.now();
+                });
+                socket.on('kill_feed', (d) => { addKillfeed(d.killer, d.victim); });
+                socket.on('eliminated', (d) => { gameOver(d.place || 2); });
+                socket.on('victory', () => { gameOver(1); });
+                socket.on('snap', (snap) => {
+                    if (!isMultiplayer) return;
+                    running = true;
+
+                    // 1. Игроки и клетки (с поддержкой плавной интерполяции)
+                    const pMap = new Map();
+                    const oldPMap = new Map(players.map(p => [p.pid, p]));
+
+                    if (snap.c) {
+                        for (let i = 0; i < snap.c.length; i++) {
+                            const [id, x, y, mass, pid, colIdx] = snap.c[i];
+                            let p = pMap.get(pid);
+                            if (!p) {
+                                const oldP = oldPMap.get(pid);
+                                const name = (snap.r && snap.r[pid]) ? snap.r[pid] : (oldP ? oldP.name : `Игрок ${pid}`);
+                                p = {
+                                    id: pid, pid: pid, name: name,
+                                    color: `hsl(${(colIdx * 45) % 360}, 85%, 55%)`,
+                                    cells: [], dead: false, maxMass: oldP ? Math.max(oldP.maxMass, mass) : mass
+                                };
+                                pMap.set(pid, p);
+                            }
+                            const oldP = oldPMap.get(pid);
+                            const oldC = oldP ? oldP.cells.find(c => c.id === id) : null;
+                            if (oldC) {
+                                if (Math.hypot(oldC.x - x, oldC.y - y) > 400) {
+                                    oldC.x = x; oldC.y = y; oldC.m = mass;
+                                }
+                                oldC.tx = x; oldC.ty = y; oldC.tm = mass;
+                                p.cells.push(oldC);
+                            } else {
+                                p.cells.push({ id, x, y, m: mass, tx: x, ty: y, tm: mass });
+                            }
+                            const totalM = p.cells.reduce((s, c) => s + c.m, 0);
+                            if (totalM > p.maxMass) p.maxMass = totalM;
+                        }
+                    }
+                    players = Array.from(pMap.values());
+                    const foundMe = players.find(p => p.pid === myPid);
+                    if (foundMe) { me = foundMe; isSpectator = false; }
+
+                    // 2. Еда
+                    if (snap.f) {
+                        food = [];
+                        for (let i = 0; i < snap.f.length; i += 2) {
+                            food.push({ x: snap.f[i], y: snap.f[i + 1], m: 1.3, c: '#00f0ff' });
+                        }
+                    }
+
+                    // 3. Вирусы
+                    if (snap.v) {
+                        viruses = snap.v.map(([id, x, y, m]) => ({ id, x, y, m }));
+                    }
+
+                    // 4. Выброшенная масса
+                    if (snap.e) {
+                        ejected = snap.e.map(([x, y, m]) => ({ x, y, m, c: '#ffcc00' }));
+                    }
+
+                    // 5. Зона
+                    if (snap.z && zone) {
+                        zone.x = snap.z.x; zone.y = snap.z.y; zone.r = snap.z.r;
+                        zone.nx = snap.z.nx; zone.ny = snap.z.ny; zone.nr = snap.z.nr;
+                        zone.st = snap.z.st;
+                    }
+
+                    // 6. HUD и лидерборд
+                    if (snap.hud) {
+                        const elMass = document.getElementById('valMass');
+                        if (elMass && snap.hud.mass !== undefined) elMass.innerText = Math.round(snap.hud.mass);
+                        const elAlive = document.getElementById('valAlive');
+                        if (elAlive && snap.hud.alive !== undefined) elAlive.innerText = snap.hud.alive;
+                        const elZone = document.getElementById('valZone');
+                        if (elZone && snap.hud.time !== undefined) {
+                            const m = Math.floor(Math.max(0, snap.hud.time) / 60), s = Math.floor(Math.max(0, snap.hud.time) % 60);
+                            elZone.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} (${zone ? (zone.st === 'wait' ? 'До сжатия' : zone.st === 'shrink' ? 'Сжатие' : 'Финальная зона') : 'Онлайн'})`;
+                        }
+                        if (snap.hud.lb) {
+                            const lbEl = document.getElementById('lbList');
+                            if (lbEl) {
+                                lbEl.innerHTML = snap.hud.lb.map((p, i) =>
+                                    `<div class="${p.n === (me ? me.name : '') ? 'me' : ''}">${i + 1}. ${p.n} — ${Math.round(p.m)}</div>`
+                                ).join('');
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.log('Socket.IO fail:', e);
+            }
+        }
+        let FOOD_MAX = 1100;
+        let VIRUS_COUNT = 24;
+        let BOT_MAX = 28;
+        let START_MASS = 30;
+        let MAX_CELLS = 16;
+        let MERGE_TIME = 12;
+        let SPLIT_MIN = 42;
+        let EJECT_MIN = 45;
+        let EJECT_MASS = 13;
+        let VIRUS_MASS = 110;
+        let VIRUS_MAX_MASS = 220;
+        let BOOST = 820;
+
+        // Зона (Быстрое сужение по умолчанию: 5с пауза / 15с сжатие)
+        let ZONE_PHASES = [
+            { wait: 5, duration: 15, r: 2400, dps: 3 },
+            { wait: 2, duration: 15, r: 1500, dps: 8 },
+            { wait: 1, duration: 15, r: 750, dps: 15 },
+            { wait: 0, duration: 15, r: 180, dps: 30 }
+        ];
+
+        /* ================= WEB AUDIO SYNTHESIZER ================= */
+        class SoundEngine {
+            constructor() { this.ctx = null; }
+            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+            playEat() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator(), g = this.ctx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.06);
+                g.gain.setValueAtTime(0.08, this.ctx.currentTime);
+                g.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.06);
+                osc.connect(g); g.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.06);
+            }
+            playSplit() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator(), g = this.ctx.createGain();
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.15);
+                g.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                g.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.15);
+                osc.connect(g); g.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.15);
+            }
+            playEject() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator(), g = this.ctx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(120, this.ctx.currentTime + 0.08);
+                g.gain.setValueAtTime(0.12, this.ctx.currentTime);
+                g.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.08);
+                osc.connect(g); g.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.08);
+            }
+            playPop() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator(), g = this.ctx.createGain();
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(300, this.ctx.currentTime + 0.2);
+                g.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                g.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.2);
+                osc.connect(g); g.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.2);
+            }
+        }
+        const audio = new SoundEngine();
+
+        /* ================= ОСНОВА & ПЕРЕМЕННЫЕ ================= */
+        const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+        let W, H;
+        function resize() {
+            const dpr = window.devicePixelRatio || 1;
+            W = window.innerWidth;
+            H = window.innerHeight;
+            cv.width = Math.round(W * dpr);
+            cv.height = Math.round(H * dpr);
+            cv.style.width = W + 'px';
+            cv.style.height = H + 'px';
+        }
+        addEventListener('resize', resize); resize();
+
+        const rnd = (a, b) => a + Math.random() * (b - a);
+        const rndi = (a, b) => Math.floor(rnd(a, b));
+        const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+        const radius = m => Math.sqrt(m) * 5.2;
+        const speedOf = m => 810 / Math.pow(radius(m), 0.44);
+
+        const NAMES = ['Волк', 'Сырок', 'Нагибатор', 'Кекс', 'Дракон', 'Пельмень', 'Тень', 'Босс', 'Пиксель',
+            'Котлета', 'Шрек', 'Виря', 'Гуру', 'Луна', 'Барсик', 'Титан', 'Бублик', 'Мираж', 'Хомяк', 'Зефир',
+            'Смузи', 'Гром', 'Лаки', 'Ниндзя', 'Огурец', 'Феникс', 'Байт', 'Морж', 'Юла', 'Аква'];
+
+        let food = [], ejected = [], viruses = [], players = [], particles = [], me = null;
+        let mouse = { x: 0, y: 0 }, cam = { x: 0, y: 0, s: 1 }, running = false, lastT = 0, keySpace = false;
+        let isBRMode = true, spectatingTarget = null, isSpectator = false;
+
+        // Состояние зоны
+        let zone = { x: WORLD / 2, y: WORLD / 2, r: WORLD * 0.7, nx: WORLD / 2, ny: WORLD / 2, nr: 1800, ph: 0, st: 'wait', timer: 30 };
+
+        function makeCell(x, y, m) { return { x, y, m, bx: 0, by: 0, mt: 0 }; }
+
+        function newPlayer(name, isBot) {
+            const hue = rndi(0, 360);
+            return {
+                name, isBot, dead: false, kills: 0, maxMass: START_MASS,
+                color: `hsl(${hue}, 80%, 55%)`, dark: `hsl(${hue}, 80%, 38%)`,
+                cells: [makeCell(rnd(300, WORLD - 300), rnd(300, WORLD - 300), START_MASS)],
+                tx: 0, ty: 0, wander: 0
+            };
+        }
+
+        function spawnFood() {
+            food.push({ x: rnd(10, WORLD - 10), y: rnd(10, WORLD - 10), m: 1.2, c: `hsl(${rndi(0, 360)}, 85%, 60%)` });
+        }
+        function spawnVirus(x, y, m = VIRUS_MASS) {
+            viruses.push({ x: x || rnd(200, WORLD - 200), y: y || rnd(200, WORLD - 200), m, vx: 0, vy: 0 });
+        }
+
+        function initGame(nick) {
+            audio.init();
+            if (typeof applySettingsFromUI === 'function') applySettingsFromUI();
+            food = []; ejected = []; viruses = []; players = []; particles = [];
+            isSpectator = false;
+            document.getElementById('specBar').classList.add('hidden');
+
+            for (let i = 0; i < FOOD_MAX; i++) spawnFood();
+            for (let i = 0; i < VIRUS_COUNT; i++) spawnVirus();
+
+            me = newPlayer(nick || 'Игрок', false);
+            me.color = 'hsl(190, 95%, 55%)'; me.dark = 'hsl(190, 95%, 38%)';
+            players.push(me);
+
+            const pool = [...NAMES].sort(() => Math.random() - .5);
+            for (let i = 0; i < BOT_MAX; i++) players.push(newPlayer(pool[i % pool.length], true));
+
+            // Инициализация зоны
+            const fCfg = ZONE_PHASES[0];
+            zone = {
+                x: WORLD / 2, y: WORLD / 2, r: WORLD * 0.65,
+                nx: clamp(WORLD / 2 + rnd(-250, 250), fCfg.r + 100, WORLD - fCfg.r - 100),
+                ny: clamp(WORLD / 2 + rnd(-250, 250), fCfg.r + 100, WORLD - fCfg.r - 100),
+                nr: fCfg.r,
+                ph: 0, st: 'wait', timer: fCfg.wait
+            };
+
+            cam.x = me.cells[0].x; cam.y = me.cells[0].y; cam.s = Math.min(W / 1200, H / 750);
+            running = true; lastT = performance.now();
+
+            if ('ontouchstart' in window) document.getElementById('touchControls').classList.remove('hidden');
+        }
+
+        /* ================= ВВОД И УПРАВЛЕНИЕ ================= */
+        function sendNetAim() {
+            if (isMultiplayer && socket && running) {
+                socket.emit('aim', { x: (mouse.x - W / 2) / cam.s, y: (mouse.y - H / 2) / cam.s });
+            }
+        }
+        addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; sendNetAim(); });
+        addEventListener('touchmove', e => {
+            const t = e.touches[0]; mouse.x = t.clientX; mouse.y = t.clientY; sendNetAim();
+        }, { passive: true });
+
+        addEventListener('keydown', e => {
+            if (!running) return;
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (!keySpace) {
+                    keySpace = true;
+                    if (isMultiplayer && socket) socket.emit('split');
+                    else doSplit(me);
+                }
+            }
+            if (e.code === 'KeyW' || e.key === 'ц' || e.key === 'Ц') {
+                if (isMultiplayer && socket) socket.emit('eject');
+                else doEject(me);
+            }
+        });
+        addEventListener('keyup', e => { if (e.code === 'Space') keySpace = false; });
+
+        document.getElementById('btnTouchSplit').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (isMultiplayer && socket) socket.emit('split');
+            else doSplit(me);
+        });
+        document.getElementById('btnTouchEject').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (isMultiplayer && socket) socket.emit('eject');
+            else doEject(me);
+        });
+
+        function mouseWorld() {
+            return { x: (mouse.x - W / 2) / cam.s + cam.x, y: (mouse.y - H / 2) / cam.s + cam.y };
+        }
+
+        /* ================= ИГРОВЫЕ ДЕЙСТВИЯ ================= */
+        function doSplit(p) {
+            if (!p || p.dead) return;
+            const t = p.isBot ? { x: p.tx, y: p.ty } : mouseWorld();
+            const list = [...p.cells].sort((a, b) => b.m - a.m);
+            let splitCount = 0;
+
+            for (const c of list) {
+                if (p.cells.length >= MAX_CELLS) break;
+                if (c.m < SPLIT_MIN) continue;
+                let dx = t.x - c.x, dy = t.y - c.y, d = Math.hypot(dx, dy) || 1;
+                c.m /= 2; c.mt = MERGE_TIME;
+                const nc = makeCell(c.x, c.y, c.m);
+                nc.mt = MERGE_TIME; nc.bx = (dx / d) * BOOST; nc.by = (dy / d) * BOOST;
+                p.cells.push(nc);
+                splitCount++;
+            }
+            if (splitCount > 0 && p === me) audio.playSplit();
+        }
+
+        function doEject(p) {
+            if (!p || p.dead) return;
+            const t = p.isBot ? { x: p.tx, y: p.ty } : mouseWorld();
+            let ejectedAny = false;
+
+            for (const c of p.cells) {
+                if (c.m < EJECT_MIN) continue;
+                let dx = t.x - c.x, dy = t.y - c.y, d = Math.hypot(dx, dy) || 1;
+                dx /= d; dy /= d; c.m -= EJECT_MASS * 1.3;
+                const r = radius(c.m);
+                ejected.push({
+                    x: c.x + dx * r, y: c.y + dy * r, m: EJECT_MASS,
+                    vx: dx * 900, vy: dy * 900, c: p.color, owner: p
+                });
+                ejectedAny = true;
+            }
+            if (ejectedAny && p === me) audio.playEject();
+        }
+
+        function explode(p, c) {
+            const parts = Math.min(MAX_CELLS - p.cells.length, 6);
+            if (parts <= 0) { c.m += VIRUS_MASS * 0.3; return; }
+            const each = c.m / (parts + 1); c.m = each; c.mt = MERGE_TIME;
+
+            for (let i = 0; i < parts; i++) {
+                const a = Math.random() * Math.PI * 2, nc = makeCell(c.x, c.y, each);
+                nc.mt = MERGE_TIME; nc.bx = Math.cos(a) * BOOST * 0.8; nc.by = Math.sin(a) * BOOST * 0.8;
+                p.cells.push(nc);
+            }
+            if (p === me) audio.playPop();
+            spawnParticles(c.x, c.y, '#33ff66', 15);
+        }
+
+        function spawnParticles(x, y, color, count = 8) {
+            for (let i = 0; i < count; i++) {
+                const a = Math.random() * Math.PI * 2, spd = rnd(50, 250);
+                particles.push({ x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 0.5, maxLife: 0.5, c: color });
+            }
+        }
+
+        /* ================= ИИ БОТОВ ================= */
+        function botThink(p, all) {
+            const big = p.cells.reduce((a, b) => a.m > b.m ? a : b);
+            let best = null, bestScore = -1e9;
+
+            // Искать еду
+            for (let i = 0; i < food.length; i += 4) {
+                const f = food[i], d = Math.hypot(f.x - big.x, f.y - big.y);
+                if (d < 850) { const s = 200 - d * 0.2; if (s > bestScore) { bestScore = s; best = f; } }
+            }
+
+            // Спасаться от безопасной зоны BR
+            if (isBRMode) {
+                const dToZone = Math.hypot(big.x - zone.x, big.y - zone.y);
+                if (dToZone > zone.r - 200) {
+                    p.tx = zone.x; p.ty = zone.y; return;
+                }
+            }
+
+            // Опасность / Игроки
+            let flee = null, fd = 1e9;
+            for (const o of all) {
+                if (o.p === p) continue;
+                const d = Math.hypot(o.c.x - big.x, o.c.y - big.y);
+                if (d > 900) continue;
+                if (o.c.m > big.m * 1.2) { if (d < fd) { fd = d; flee = o.c; } }
+                else if (big.m > o.c.m * 1.25) { const s = 500 - d * 0.3; if (s > bestScore) { bestScore = s; best = o.c; } }
+            }
+
+            if (flee && fd < radius(flee.m) + 240) {
+                p.tx = big.x - (flee.x - big.x) * 3; p.ty = big.y - (flee.y - big.y) * 3;
+            } else if (best) {
+                p.tx = best.x; p.ty = best.y;
+                if (best.m && big.m > best.m * 2.5 && p.cells.length < 4 && Math.hypot(best.x - big.x, best.y - big.y) < radius(big.m) * 2.2 && Math.random() < 0.03) {
+                    doSplit(p);
+                }
+            } else {
+                p.wander -= 1;
+                if (p.wander <= 0) { p.wander = rndi(60, 180); p.tx = rnd(100, WORLD - 100); p.ty = rnd(100, WORLD - 100); }
+            }
+
+            p.tx = clamp(p.tx, 20, WORLD - 20); p.ty = clamp(p.ty, 20, WORLD - 20);
+        }
+
+        /* ================= ОБНОВЛЕНИЕ ФИЗИКИ И ЛОГИКИ ================= */
+        function update(dt) {
+            // 1. Обновление безопасной зоны (Battle Royale)
+            if (isBRMode && zone.st !== 'done') {
+                zone.timer -= dt;
+                const cfg = ZONE_PHASES[zone.ph] || ZONE_PHASES[ZONE_PHASES.length - 1];
+
+                if (zone.st === 'wait' && zone.timer <= 0) {
+                    zone.st = 'shrink';
+                    zone.timer = cfg.duration;
+                } else if (zone.st === 'shrink') {
+                    if (zone.timer > 0) {
+                        const step = Math.min(1, dt / zone.timer);
+                        zone.r += (zone.nr - zone.r) * step;
+                        zone.x += (zone.nx - zone.x) * step;
+                        zone.y += (zone.ny - zone.y) * step;
+                    }
+
+                    if (zone.timer <= 0) {
+                        zone.r = zone.nr; zone.x = zone.nx; zone.y = zone.ny;
+                        zone.ph++;
+                        if (zone.ph < ZONE_PHASES.length) {
+                            const nxt = ZONE_PHASES[zone.ph];
+                            zone.nr = nxt.r;
+                            zone.nx = clamp(zone.x + rnd(-250, 250), nxt.r + 100, WORLD - nxt.r - 100);
+                            zone.ny = clamp(zone.y + rnd(-250, 250), nxt.r + 100, WORLD - nxt.r - 100);
+                            if (nxt.wait > 0) {
+                                zone.st = 'wait'; zone.timer = nxt.wait;
+                            } else {
+                                zone.st = 'shrink'; zone.timer = nxt.duration;
+                            }
+                        } else {
+                            zone.st = 'done';
+                            zone.timer = 0;
+                        }
+                    }
+                }
+            }
+
+            // 2. Движение вирусов
+            for (const v of viruses) {
+                v.x = clamp(v.x + (v.vx || 0) * dt, 40, WORLD - 40);
+                v.y = clamp(v.y + (v.vy || 0) * dt, 40, WORLD - 40);
+                v.vx = (v.vx || 0) * Math.pow(0.05, dt);
+                v.vy = (v.vy || 0) * Math.pow(0.05, dt);
+            }
+
+            // 3. Частицы
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const pt = particles[i];
+                pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.life -= dt;
+                if (pt.life <= 0) particles.splice(i, 1);
+            }
+
+            // 4. Игроки и Боты
+            const all = [];
+            for (const p of players) if (!p.dead) for (const c of p.cells) all.push({ p, c });
+
+            for (const p of players) {
+                if (p.dead) {
+                    if (p.isBot && !isBRMode) {
+                        p.dead = false; p.cells = [makeCell(rnd(200, WORLD - 200), rnd(200, WORLD - 200), START_MASS)];
+                    }
+                    continue;
+                }
+
+                if (p.isBot) botThink(p, all);
+                else { const m = mouseWorld(); p.tx = m.x; p.ty = m.y; }
+
+                let pTotal = 0;
+
+                for (const c of p.cells) {
+                    let dx = p.tx - c.x, dy = p.ty - c.y, d = Math.hypot(dx, dy);
+                    if (d > 1) {
+                        const sp = speedOf(c.m) * Math.min(1, d / 60);
+                        c.x += (dx / d) * sp * dt; c.y += (dy / d) * sp * dt;
+                    }
+                    c.x += c.bx * dt; c.y += c.by * dt;
+                    const dec = Math.pow(0.06, dt); c.bx *= dec; c.by *= dec;
+                    if (c.mt > 0) c.mt -= dt;
+
+                    // Естественный распад массы
+                    if (c.m > 200) c.m -= c.m * 0.002 * dt;
+
+                    // Урон от зоны в режиме Battle Royale
+                    if (isBRMode) {
+                        const dZone = Math.hypot(c.x - zone.x, c.y - zone.y);
+                        if (dZone > zone.r) {
+                            const cfg = ZONE_PHASES[zone.ph] || ZONE_PHASES[ZONE_PHASES.length - 1];
+                            c.m -= (cfg.dps + c.m * 0.015) * dt;
+                        }
+                    }
+
+                    const r = radius(c.m);
+                    c.x = clamp(c.x, r, WORLD - r); c.y = clamp(c.y, r, WORLD - r);
+                    pTotal += c.m;
+                }
+
+                if (pTotal > p.maxMass) p.maxMass = pTotal;
+
+                // Слияние / Столкновение собственных клеток
+                for (let i = 0; i < p.cells.length; i++) {
+                    for (let j = i + 1; j < p.cells.length; j++) {
+                        const a = p.cells[i], b = p.cells[j];
+                        if (!a || !b) continue;
+                        const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || .01;
+                        const ra = radius(a.m), rb = radius(b.m);
+                        if (a.mt <= 0 && b.mt <= 0) {
+                            if (d < Math.max(ra, rb)) {
+                                a.m += b.m; p.cells.splice(j, 1); j--; continue;
+                            }
+                        }
+                        const ov = ra + rb - d;
+                        if (ov > 0) {
+                            const px = (dx / d) * ov * 0.5, py = (dy / d) * ov * 0.5;
+                            a.x -= px * 0.5; a.y -= py * 0.5; b.x += px * 0.5; b.y += py * 0.5;
+                        }
+                    }
+                }
+
+                // Поедание еды, выброса и вирусов
+                for (const c of p.cells) {
+                    const r = radius(c.m);
+
+                    for (let i = food.length - 1; i >= 0; i--) {
+                        const f = food[i];
+                        if (Math.hypot(f.x - c.x, f.y - c.y) < r) {
+                            c.m += f.m; food.splice(i, 1);
+                            if (p === me && Math.random() < 0.15) audio.playEat();
+                        }
+                    }
+
+                    for (let i = ejected.length - 1; i >= 0; i--) {
+                        const e = ejected[i];
+                        if (c.m > e.m * 1.15 && Math.hypot(e.x - c.x, e.y - c.y) < r) {
+                            c.m += e.m; ejected.splice(i, 1);
+                            if (p === me) audio.playEat();
+                        }
+                    }
+
+                    for (let i = viruses.length - 1; i >= 0; i--) {
+                        const v = viruses[i];
+                        if (c.m > VIRUS_MASS * 1.15 && Math.hypot(v.x - c.x, v.y - c.y) < r - radius(v.m) * 0.4) {
+                            viruses.splice(i, 1); explode(p, c); spawnVirus(); break;
+                        }
+                    }
+                }
+            }
+
+            // 5. Выброшенная масса & Кормление вирусов
+            for (let i = ejected.length - 1; i >= 0; i--) {
+                const e = ejected[i];
+                e.x += e.vx * dt; e.y += e.vy * dt;
+                const dec = Math.pow(0.02, dt); e.vx *= dec; e.vy *= dec;
+                const r = radius(e.m);
+                e.x = clamp(e.x, r, WORLD - r); e.y = clamp(e.y, r, WORLD - r);
+
+                // Взаимодействие выстрела с вирусом
+                for (const v of viruses) {
+                    if (Math.hypot(e.x - v.x, e.y - v.y) < radius(v.m)) {
+                        v.m += e.m * 0.8;
+                        const len = Math.hypot(e.vx, e.vy) || 1;
+                        v.vx = (e.vx / len) * 140; v.vy = (e.vy / len) * 140;
+                        ejected.splice(i, 1);
+
+                        if (v.m >= VIRUS_MAX_MASS) {
+                            v.m = VIRUS_MASS;
+                            spawnVirus(v.x, v.y, VIRUS_MASS);
+                            viruses[viruses.length - 1].vx = (e.vx / len) * 650;
+                            viruses[viruses.length - 1].vy = (e.vy / len) * 650;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // 6. Поедание клеток между игроками
+            const list = [];
+            for (const p of players) if (!p.dead) for (const c of p.cells) list.push({ p, c });
+
+            for (let i = 0; i < list.length; i++) {
+                for (let j = i + 1; j < list.length; j++) {
+                    const A = list[i], B = list[j];
+                    if (A.p === B.p || A.c.eaten || B.c.eaten) continue;
+                    const big = A.c.m > B.c.m ? A : B, sml = A.c.m > B.c.m ? B : A;
+                    if (big.c.m < sml.c.m * 1.16) continue;
+                    const d = Math.hypot(big.c.x - sml.c.x, big.c.y - sml.c.y);
+
+                    if (d < radius(big.c.m) - radius(sml.c.m) * 0.5) {
+                        big.c.m += sml.c.m; sml.c.eaten = true;
+                        spawnParticles(sml.c.x, sml.c.y, sml.p.color, 12);
+                        if (big.p === me) audio.playEat();
+                    }
+                }
+            }
+
+            // 7. Проверка уничтожения клеток и игроков
+            for (const p of players) {
+                if (p.dead) continue;
+                p.cells = p.cells.filter(c => !c.eaten && c.m >= 8);
+
+                if (p.cells.length === 0) {
+                    p.dead = true;
+                    const aliveCount = players.filter(x => !x.dead).length;
+
+                    addKillfeed('Зона / Соперник', p.name, aliveCount);
+
+                    if (p === me) gameOver(aliveCount + 1);
+                }
+            }
+
+            while (food.length < FOOD_MAX) spawnFood();
+        }
+
+        /* ================= КАМЕРА & НАБЛЮДЕНИЕ ================= */
+        function updateCam(dt) {
+            let targetP = me;
+
+            if ((!me || me.dead || isSpectator)) {
+                const alive = players.filter(p => !p.dead);
+                if (alive.length > 0) {
+                    if (!spectatingTarget || spectatingTarget.dead) spectatingTarget = alive[0];
+                    targetP = spectatingTarget;
+                    document.getElementById('specName').innerText = targetP.name;
+                }
+            }
+
+            if (!targetP || targetP.dead || targetP.cells.length === 0) return;
+
+            let sx = 0, sy = 0, tm = 0, maxD = 0;
+            for (const c of targetP.cells) { sx += c.x * c.m; sy += c.y * c.m; tm += c.m; }
+            const cx = tm > 0 ? sx / tm : targetP.cells[0].x;
+            const cy = tm > 0 ? sy / tm : targetP.cells[0].y;
+            for (const c of targetP.cells) maxD = Math.max(maxD, Math.hypot(c.x - cx, c.y - cy) + radius(c.m));
+
+            const base = Math.min(W / 1200, H / 750);
+            let z = base * Math.pow(START_MASS / (tm || START_MASS), 0.22);
+            z = Math.min(z, Math.min(W, H) / (maxD * 2.3 + 300));
+            z = clamp(z, 0.15, 1.5);
+
+            cam.x = cx;
+            cam.y = cy;
+            cam.s += (z - cam.s) * Math.min(1, 12 * dt);
+        }
+
+        /* ================= ОТРИСОВКА ================= */
+        function drawVirus(v) {
+            const r = radius(v.m), spikes = 20;
+            ctx.beginPath();
+            for (let i = 0; i < spikes * 2; i++) {
+                const a = (i / (spikes * 2)) * Math.PI * 2, rr = i % 2 ? r * 0.86 : r * 1.06;
+                ctx.lineTo(v.x + Math.cos(a) * rr, v.y + Math.sin(a) * rr);
+            }
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(51,255,102, 0.35)'; ctx.fill();
+            ctx.lineWidth = 4 / cam.s; ctx.strokeStyle = '#33ff66'; ctx.stroke();
+        }
+
+        function render() {
+            const dpr = window.devicePixelRatio || 1;
+            ctx.save();
+            ctx.scale(dpr, dpr);
+
+            ctx.fillStyle = '#0a0d14'; ctx.fillRect(0, 0, W, H);
+            ctx.save();
+
+            ctx.translate(W / 2, H / 2); ctx.scale(cam.s, cam.s); ctx.translate(-cam.x, -cam.y);
+
+            // 1. Сетка
+            const step = 80, x0 = cam.x - W / 2 / cam.s, x1 = cam.x + W / 2 / cam.s;
+            const y0 = cam.y - H / 2 / cam.s, y1 = cam.y + H / 2 / cam.s;
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1 / cam.s;
+            ctx.beginPath();
+            for (let x = Math.floor(x0 / step) * step; x < x1; x += step) { ctx.moveTo(x, y0); ctx.lineTo(x, y1); }
+            for (let y = Math.floor(y0 / step) * step; y < y1; y += step) { ctx.moveTo(x0, y); ctx.lineTo(x1, y); }
+            ctx.stroke();
+
+            // Границы мира
+            ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 6 / cam.s;
+            ctx.strokeRect(0, 0, WORLD, WORLD);
+
+            // 2. Отрисовка Зоны (Battle Royale)
+            if (isBRMode) {
+                // Следующая зона (пунктир)
+                if (zone.st !== 'done') {
+                    ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+                    ctx.lineWidth = 3 / cam.s;
+                    ctx.setLineDash([15, 10]);
+                    ctx.beginPath(); ctx.arc(zone.nx, zone.ny, zone.nr, 0, Math.PI * 2); ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                // Текущая опасная зона
+                ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 6 / cam.s;
+                ctx.shadowColor = '#ff0055'; ctx.shadowBlur = 15;
+                ctx.beginPath(); ctx.arc(zone.x, zone.y, zone.r, 0, Math.PI * 2); ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+
+            const vis = (x, y, r) => x + r > x0 && x - r < x1 && y + r > y0 && y - r < y1;
+
+            // 3. Еда & Выброс
+            for (const f of food) if (vis(f.x, f.y, 8)) {
+                ctx.fillStyle = f.c; ctx.beginPath(); ctx.arc(f.x, f.y, radius(f.m) + 2, 0, 6.2832); ctx.fill();
+            }
+            for (const e of ejected) if (vis(e.x, e.y, 20)) {
+                ctx.fillStyle = e.c; ctx.beginPath(); ctx.arc(e.x, e.y, radius(e.m), 0, 6.2832); ctx.fill();
+            }
+
+            // 4. Частицы
+            for (const pt of particles) {
+                ctx.fillStyle = pt.c; ctx.globalAlpha = pt.life / pt.maxLife;
+                ctx.beginPath(); ctx.arc(pt.x, pt.y, 3 / cam.s, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+
+            // 5. Клетки игроков
+            const cells = [];
+            for (const p of players) if (!p.dead) for (const c of p.cells) cells.push({ p, c });
+            cells.sort((a, b) => a.c.m - b.c.m);
+
+            for (const { p, c } of cells) {
+                const r = radius(c.m);
+                if (!vis(c.x, c.y, r)) continue;
+
+                ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 6.2832);
+                ctx.fillStyle = p.color; ctx.fill();
+                ctx.lineWidth = Math.max(3, r * 0.06); ctx.strokeStyle = p.dark; ctx.stroke();
+
+                if (r * cam.s > 15) {
+                    ctx.font = `700 ${Math.max(11, r * 0.33)}px Segoe UI, sans-serif`;
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.lineWidth = Math.max(2, r * 0.05); ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+                    ctx.strokeText(p.name, c.x, c.y); ctx.fillStyle = '#fff'; ctx.fillText(p.name, c.x, c.y);
+
+                    if (r * cam.s > 32) {
+                        ctx.font = `600 ${Math.max(9, r * 0.2)}px Segoe UI, sans-serif`;
+                        ctx.strokeText(Math.round(c.m), c.x, c.y + r * 0.38);
+                        ctx.fillText(Math.round(c.m), c.x, c.y + r * 0.38);
+                    }
+                }
+            }
+
+            // 6. Вирусы
+            for (const v of viruses) if (vis(v.x, v.y, radius(v.m) * 1.1)) drawVirus(v);
+
+            ctx.restore();
+
+            // 7. Мини-карта
+            drawMinimap();
+
+            ctx.restore();
+
+            // Виньетка опасности вне зоны
+            if (isBRMode && me && !me.dead && me.cells.length > 0) {
+                const dToZone = Math.hypot(me.cells[0].x - zone.x, me.cells[0].y - zone.y);
+                document.getElementById('vignette').style.opacity = dToZone > zone.r ? '1' : '0';
+            } else {
+                document.getElementById('vignette').style.opacity = '0';
+            }
+        }
+
+        function drawMinimap() {
+            const S = 130, pad = 16, X = W - S - pad, Y = H - S - pad, k = S / WORLD;
+
+            ctx.fillStyle = 'rgba(10, 14, 23, 0.75)'; ctx.fillRect(X, Y, S, S);
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1; ctx.strokeRect(X, Y, S, S);
+
+            if (isBRMode) {
+                ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(X + zone.x * k, Y + zone.y * k, zone.r * k, 0, Math.PI * 2); ctx.stroke();
+            }
+
+            for (const p of players) {
+                if (p.dead || p.cells.length === 0) continue;
+                const c = p.cells.reduce((a, b) => a.m > b.m ? a : b);
+                ctx.fillStyle = p === me ? '#ffe06a' : 'rgba(255,255,255,0.5)';
+                const r = p === me ? 3.5 : 2;
+                ctx.beginPath(); ctx.arc(X + c.x * k, Y + c.y * k, r, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        /* ================= HUD & ИНФОРМАЦИЯ ================= */
+        function addKillfeed(killer, victim, place) {
+            const kf = document.getElementById('killfeed');
+            const item = document.createElement('div');
+            item.className = 'kf-item';
+            item.innerHTML = `<b>${victim}</b> выбыл (#${place})`;
+            kf.appendChild(item);
+            setTimeout(() => item.remove(), 3500);
+        }
+
+        let hudT = 0;
+        function updateHUD(dt) {
+            hudT -= dt; if (hudT > 0) return; hudT = 0.2;
+
+            const score = me && !me.dead ? Math.round(me.cells.reduce((s, c) => s + c.m, 0)) : 0;
+            document.getElementById('valMass').innerText = score;
+            document.getElementById('valAlive').innerText = players.filter(p => !p.dead).length;
+            if (isSpectator && typeof updateSpectatorSelect === 'function') updateSpectatorSelect();
+
+            if (isBRMode) {
+                const m = Math.floor(Math.max(0, zone.timer) / 60), s = Math.floor(Math.max(0, zone.timer) % 60);
+                const stText = zone.st === 'wait' ? 'До сжатия' : zone.st === 'shrink' ? 'Сжатие' : 'Финальная зона';
+                document.getElementById('valZone').innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} (${stText})`;
+            } else {
+                document.getElementById('valZone').innerText = 'Отключена';
+            }
+
+            // Таблица лидеров
+            const arr = players.filter(p => !p.dead)
+                .map(p => ({ n: p.name, m: p.cells.reduce((s, c) => s + c.m, 0), me: p === me }))
+                .sort((a, b) => b.m - a.m).slice(0, 10);
+
+            document.getElementById('lbList').innerHTML = arr.map((p, i) =>
+                `<div class="${p.me ? 'me' : ''}">${i + 1}. ${p.n} — ${Math.round(p.m)}</div>`).join('');
+        }
+
+        /* ================= ПЛАВНАЯ ИНТЕРПОЛЯЦИЯ СЕТЕВОГО РЕЖИМА ================= */
+        function updateNet(dt) {
+            const lerpFactor = Math.min(1, dt * 25);
+            for (const p of players) {
+                if (p.dead) continue;
+                for (const c of p.cells) {
+                    if (c.tx !== undefined && c.ty !== undefined) {
+                        c.x += (c.tx - c.x) * lerpFactor;
+                        c.y += (c.ty - c.y) * lerpFactor;
+                        if (c.tm !== undefined) c.m += (c.tm - c.m) * lerpFactor;
+                    }
+                }
+            }
+        }
+
+        /* ================= ОСНОВНОЙ ИГРОВОЙ ЦИКЛ ================= */
+        function loop(t) {
+            const dt = Math.min(0.05, (t - lastT) / 1000 || 0); lastT = t;
+            if (running) {
+                if (isMultiplayer && socket) {
+                    sendNetAim();
+                    updateNet(dt);
+                } else {
+                    update(dt);
+                    updateHUD(dt);
+                }
+                updateCam(dt);
+            }
+            render();
+            requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+
+        /* ================= ИНТЕРФЕЙС И ЭКРАНЫ ================= */
+        const startS = document.getElementById('start'), overS = document.getElementById('over');
+
+        function play() {
+            startS.classList.add('hidden'); overS.classList.add('hidden');
+            const nickname = document.getElementById('nick').value.trim() || 'Игрок';
+            if (isMultiplayer && socket) {
+                socket.emit('join', { name: nickname });
+            } else {
+                initGame(nickname);
+            }
+        }
+
+        function gameOver(place) {
+            running = true; // Продолжаем рендерить для спектатора
+            document.getElementById('overTitle').innerText = place === 1 ? 'ПОБЕДА ROYALE!' : 'ТЕБЯ СЪЕЛИ';
+            document.getElementById('overInfo').innerText = `Твой результат: #${place}. Макс. масса: ${Math.round(me ? me.maxMass : 0)}`;
+            overS.classList.remove('hidden');
+        }
+
+        document.getElementById('playBtn').onclick = play;
+        document.getElementById('againBtn').onclick = play;
+        document.getElementById('nick').addEventListener('keydown', e => { if (e.key === 'Enter') play(); });
+
+        const specSelect = document.getElementById('specSelect');
+
+        function updateSpectatorSelect() {
+            if (!specSelect) return;
+            const currentVal = specSelect.value;
+            const alive = players.filter(p => !p.dead);
+
+            let html = '<option value="">Все игроки (' + alive.length + ')...</option>';
+            for (const p of alive) {
+                const id = p.pid || p.id;
+                const name = p.name || ('Игрок ' + id);
+                const mass = p.cells ? Math.round(p.cells.reduce((s, c) => s + (c.m || 0), 0)) : '';
+                const label = name + (mass ? (' [' + mass + ']') : '');
+                html += `<option value="${id}">${label}</option>`;
+            }
+            specSelect.innerHTML = html;
+            if (currentVal && alive.some(p => (p.pid || p.id) == currentVal)) {
+                specSelect.value = currentVal;
+            }
+        }
+
+        if (specSelect) {
+            specSelect.onchange = function () {
+                const val = this.value;
+                if (!val) return;
+                if (isMultiplayer && socket) {
+                    socket.emit('spec_target', parseInt(val));
+                } else {
+                    const found = players.find(p => (p.pid || p.id) == val);
+                    if (found) spectatingTarget = found;
+                }
+            };
+        }
+
+        document.getElementById('specBtn').onclick = () => {
+            overS.classList.add('hidden');
+            isSpectator = true;
+            document.getElementById('specBar').classList.remove('hidden');
+            updateSpectatorSelect();
+            if (isMultiplayer && socket) socket.emit('spec_target', 'next');
+        };
+
+        document.getElementById('specPrev').onclick = () => cycleSpectator(-1);
+        document.getElementById('specNext').onclick = () => cycleSpectator(1);
+
+        function cycleSpectator(dir) {
+            if (isMultiplayer && socket) {
+                socket.emit('spec_target', dir === 1 ? 'next' : 'prev');
+                return;
+            }
+            const alive = players.filter(p => !p.dead);
+            if (!alive.length) return;
+            let idx = alive.indexOf(spectatingTarget);
+            idx = (idx + dir + alive.length) % alive.length;
+            spectatingTarget = alive[idx];
+            if (spectatingTarget && specSelect) specSelect.value = spectatingTarget.pid || spectatingTarget.id || '';
+        }
+
+        // Выбор режима
+        document.getElementById('modeBR').onclick = function () {
+            isBRMode = true;
+            this.classList.add('active');
+            document.getElementById('modeClassic').classList.remove('active');
+        };
+        document.getElementById('modeClassic').onclick = function () {
+            isBRMode = false;
+            this.classList.add('active');
+            document.getElementById('modeBR').classList.remove('active');
+        };
+
+        /* ================= НАСТРОЙКИ РАУНДА ================= */
+        const settingsModal = document.getElementById('settingsModal');
+        const openSettingsBtn = document.getElementById('openSettingsBtn');
+        const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+        const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+
+        openSettingsBtn.onclick = () => settingsModal.classList.remove('hidden');
+        closeSettingsBtn.onclick = () => settingsModal.classList.add('hidden');
+
+        function applySettingsFromUI() {
+            const w = parseFloat(document.getElementById('setZoneWait').value) || 5;
+            const d = parseFloat(document.getElementById('setZoneDuration').value) || 15;
+            const dps = parseFloat(document.getElementById('setZoneDps').value) || 3;
+
+            ZONE_PHASES = [
+                { wait: w, duration: d, r: 2400, dps: dps },
+                { wait: Math.round(w * 0.4), duration: d, r: 1500, dps: Math.round(dps * 2.5) },
+                { wait: Math.round(w * 0.2), duration: d, r: 750, dps: Math.round(dps * 5) },
+                { wait: 0, duration: d, r: 180, dps: Math.round(dps * 10) }
+            ];
+
+            BOT_MAX = parseInt(document.getElementById('setBotCount').value) || 28;
+            START_MASS = parseInt(document.getElementById('setStartMass').value) || 30;
+            FOOD_MAX = parseInt(document.getElementById('setFoodCount').value) || 1100;
+            VIRUS_COUNT = parseInt(document.getElementById('setVirusCount').value) || 24;
+            const matchMin = parseInt(document.getElementById('setMatchTime').value) || 5;
+
+            if (isMultiplayer && socket) {
+                socket.emit('update_settings', {
+                    zoneWait: w,
+                    zoneDuration: d,
+                    zoneDps: dps,
+                    botFill: BOT_MAX,
+                    startMass: START_MASS,
+                    foodCount: FOOD_MAX,
+                    virusCount: VIRUS_COUNT,
+                    matchMin: matchMin
+                });
+            }
+            settingsModal.classList.add('hidden');
+        }
+
+        saveSettingsBtn.onclick = applySettingsFromUI;
+
+        // Пресеты настроек
+        const presetFast = document.getElementById('presetFast');
+        const presetUltra = document.getElementById('presetUltra');
+        const presetNormal = document.getElementById('presetNormal');
+
+        function setPreset(wait, duration, dps, btn) {
+            document.getElementById('setZoneWait').value = wait;
+            document.getElementById('setZoneDuration').value = duration;
+            document.getElementById('setZoneDps').value = dps;
+            [presetFast, presetUltra, presetNormal].forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        presetFast.onclick = () => setPreset(5, 15, 3, presetFast);
+        presetUltra.onclick = () => setPreset(2, 10, 8, presetUltra);
+        presetNormal.onclick = () => setPreset(15, 45, 2, presetNormal);
+    </script>
+</body>
+
+</html>
