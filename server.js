@@ -47,9 +47,9 @@ const CFG = {
     EAT_RATIO: 1.15,
     EAT_OVER: 0.45,
 
-    DECAY_BASE: 0.002,
-    DECAY_MASS: 0.0006,
-    TOP_MULT: [2.5, 1.8, 1.4],
+    DECAY_BASE: 0,
+    DECAY_MASS: 0,
+    TOP_MULT: [1, 1, 1],
 
     ZONE_START_R: 2600,
     ZONE_PHASES: [
@@ -67,7 +67,7 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const radius = m => 4 * Math.sqrt(Math.max(1, m));
 const speedOf = m => Math.max(55, 760 * Math.pow(Math.max(1, m), -0.28));
-const mergeTime = m => 8000 + Math.min(17000, m * 40);
+const mergeTime = m => 5000 + Math.min(8000, m * 20);
 const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 
 let seq = 1;
@@ -527,13 +527,6 @@ function physicsTick(dt) {
             c.x = clamp(c.x, 15, CFG.MAP - 15);
             c.y = clamp(c.y, 15, CFG.MAP - 15);
 
-            // Mass Decay (постепенная усушка только для массы выше стартовой, не опускает ниже START_MASS)
-            if (c.m > CFG.START_MASS) {
-                let decayRate = CFG.DECAY_BASE + c.m * CFG.DECAY_MASS;
-                if (p.rank <= 3) decayRate *= CFG.TOP_MULT[p.rank - 1];
-                c.m = Math.max(CFG.START_MASS, c.m - c.m * decayRate * dt);
-            }
-
             // Check Zone damage (урон от токсичной зоны за пределами круга)
             const dToZone = dist(c.x, c.y, curZone.x, curZone.y);
             if (dToZone > curZone.r) {
@@ -570,9 +563,9 @@ function physicsTick(dt) {
                 const r1 = radius(c1.m), r2 = radius(c2.m);
 
                 if (T() >= c1.canMergeAt && T() >= c2.canMergeAt) {
-                    if (d < r1 + r2) {
+                    if (d <= r1 + r2 + 15) {
                         c1.m += c2.m;
-                        c1.canMergeAt = T() + mergeTime(c1.m);
+                        c1.canMergeAt = Math.max(c1.canMergeAt, c2.canMergeAt);
                         p.cells.splice(j, 1);
                         break;
                     }
