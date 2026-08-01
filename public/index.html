@@ -1102,7 +1102,7 @@
             'Смузи', 'Гром', 'Лаки', 'Ниндзя', 'Огурец', 'Феникс', 'Байт', 'Морж', 'Юла', 'Аква'];
 
         let food = [], ejected = [], viruses = [], players = [], particles = [], me = null;
-        let mouse = { x: 0, y: 0 }, cam = { x: 0, y: 0, s: 1 }, running = false, lastT = 0, keySpace = false;
+        let mouse = { x: 0, y: 0 }, cam = { x: 0, y: 0, s: 1 }, camSmoothX = 0, camSmoothY = 0, running = false, lastT = 0, keySpace = false;
         let isBRMode = true, spectatingTarget = null, isSpectator = false;
 
         // Состояние зоны
@@ -1155,6 +1155,7 @@
             };
 
             cam.x = me.cells[0].x; cam.y = me.cells[0].y; cam.s = Math.min(W / 1200, H / 750);
+            camSmoothX = cam.x; camSmoothY = cam.y;
             running = true; lastT = performance.now();
 
             if ('ontouchstart' in window) document.getElementById('touchControls').classList.remove('hidden');
@@ -1545,8 +1546,13 @@
             if ((!me || me.dead || isSpectator)) {
                 const alive = players.filter(p => !p.dead);
                 if (alive.length > 0) {
-                    if (!spectatingTarget || spectatingTarget.dead) spectatingTarget = alive[0];
+                    const needResync = (!spectatingTarget || spectatingTarget.dead);
+                    if (needResync) spectatingTarget = alive[0];
                     targetP = spectatingTarget;
+                    if (needResync && targetP.cells.length > 0) {
+                        camSmoothX = targetP.cells[0].x;
+                        camSmoothY = targetP.cells[0].y;
+                    }
                     const specNameEl = document.getElementById('specName');
                     if (specNameEl) specNameEl.innerText = targetP.name;
                 }
@@ -1565,8 +1571,10 @@
             z = Math.min(z, Math.min(W, H) / (maxD * 2.3 + 300));
             z = clamp(z, 0.15, 1.5);
 
-            cam.x = cx;
-            cam.y = cy;
+            camSmoothX += (cx - camSmoothX) * Math.min(1, 18 * dt);
+            camSmoothY += (cy - camSmoothY) * Math.min(1, 18 * dt);
+            cam.x = camSmoothX;
+            cam.y = camSmoothY;
             cam.s += (z - cam.s) * Math.min(1, 12 * dt);
         }
 
@@ -1801,16 +1809,16 @@
                     if (c.tx === undefined || c.ty === undefined) continue;
 
                     if (isMine && !isSpectator) {
-                        // СВОИ КЛЕТКИ: предсказание на клиенте — реагируем на мышь мгновенно,
-                        // не дожидаясь RTT. Физика повторяет серверную (speedOf из серверных формул).
+                        // СВОИ КЛЕТКИ: смешанное предсказание — серверная позиция + локальное движение.
+                        // Без двойного применения сил: коррекция не дополнительная, а бленд.
                         if (c.vx === undefined) { c.vx = 0; c.vy = 0; }
 
-                        // Затухание импульса (split/eject) — как на сервере: vx *= 0.08^dt
+                        // Затухание импульса
                         const boostDecay = Math.pow(0.08, dt);
                         c.x += c.vx * dt; c.y += c.vy * dt;
                         c.vx *= boostDecay; c.vy *= boostDecay;
 
-                        // Центроид вокруг предсказанных клеток (не серверных данных)
+                        // Центроид по предсказанным позициям
                         let sx = 0, sy = 0, sm = 0;
                         for (const oc of p.cells) { sx += oc.x * oc.m; sy += oc.y * oc.m; sm += oc.m; }
                         const cenX = sm > 0 ? sx / sm : c.x, cenY = sm > 0 ? sy / sm : c.y;
@@ -1827,13 +1835,20 @@
                             c.y += tdy * moveRatio;
                         }
 
-                        // Мягкая коррекция сервером: чем дальше, тем сильнее подтягиваем
+                        // Границы мира — как на сервере
+                        c.x = clamp(c.x, 15, WORLD - 15);
+                        c.y = clamp(c.y, 15, WORLD - 15);
+
+                        // Бленд с серверной позицией: предсказание важнее, но если разошлось — плавный подтяг.
+                        // При ошибке < 30 игнорируем сервер, 30–250 — плавный снэп, > 250 — мгновенный.
                         const ex = c.tx - c.x, ey = c.ty - c.y;
                         const err = Math.hypot(ex, ey);
-                        if (err > 400) { // телепорт/спавн/поедание — снэп сразу
+                        if (err > 250) {
                             c.x = c.tx; c.y = c.ty;
-                        } else if (err > 0.5) {
-                            const corr = Math.min(1, (err / 150)) * lerpFactor; // 0 при малой ошибке → сильнее при большой
+                        } else if (err > 30) {
+                            // alpha: 0 при err=30, 1 при err=250
+                            const alpha = Math.min(1, (err - 30) / 220);
+                            const corr = alpha * lerpFactor;
                             c.x += ex * corr; c.y += ey * corr;
                         }
                         if (c.tm !== undefined) c.m += (c.tm - c.m) * lerpFactor;
