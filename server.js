@@ -14,7 +14,7 @@ const CFG = {
     PORT: +(process.env.PORT || 3000),
     MAP: 4000,
     SIM_HZ: 30,
-    NET_HZ: 15, // хватает 15 тиков/сек: клиент интерполирует позиции. Снижает трафик snap'ов вдвое.
+    NET_HZ: 25, // 25 снэпов/сек: больше не значит много трафика — клиент ещё и предсказывает (dead reckoning).
     FOOD_NET_EVERY: 4,
 
     MAX_PLAYERS: 20,
@@ -578,11 +578,16 @@ function physicsTick(dt) {
     sortedPlayers.forEach((p, idx) => p.rank = idx + 1);
 
     // 3. Update player cells movement
+    const AIM_DEAD = 60;   // мёртвая зона (px в world-координатах) — почти стоп
+    const AIM_FULL = 250; // дистанция, при которой скорость достигает максимума
+
     for (const p of sortedPlayers) {
         let pTotal = 0;
-        const len = Math.hypot(p.aim.x, p.aim.y) || 1;
-        const ndx = p.aim.x / len;
-        const ndy = p.aim.y / len;
+        const aimLen = Math.hypot(p.aim.x, p.aim.y) || 0;
+        // Множитель скорости: 0 в мёртвой зоне, линейный рост до 1 к AIM_FULL
+        const speedMul = aimLen <= AIM_DEAD ? 0 : Math.min(1, (aimLen - AIM_DEAD) / (AIM_FULL - AIM_DEAD));
+        const ndx = aimLen > 0 ? p.aim.x / aimLen : 0;
+        const ndy = aimLen > 0 ? p.aim.y / aimLen : 0;
 
         const cent = getPlayerCentroid(p);
 
@@ -595,13 +600,13 @@ function physicsTick(dt) {
             c.vx *= Math.pow(0.08, dt);
             c.vy *= Math.pow(0.08, dt);
 
-            // Normal movement towards aim
-            const spd = speedOf(c.m);
+            // Movement: direction towards aim, speed depends on aim distance (classic agar.io)
+            const spd = speedOf(c.m) * speedMul;
             const targetX = cent.x + p.aim.x;
             const targetY = cent.y + p.aim.y;
             const tDist = dist(c.x, c.y, targetX, targetY);
 
-            if (tDist > 5) {
+            if (tDist > 5 && spd > 0) {
                 const moveRatio = Math.min(1, spd * dt / tDist);
                 c.x += (targetX - c.x) * moveRatio;
                 c.y += (targetY - c.y) * moveRatio;
@@ -673,7 +678,7 @@ function physicsTick(dt) {
             const r = radius(c.m);
             for (let i = 0; i < state.food.length; i++) {
                 const f = state.food[i];
-                if (dist(c.x, c.y, f.x, f.y) < r) {
+                if (dist(c.x, c.y, f.x, f.y) < r + radius(f.m)) {
                     c.m += f.m;
                     spawnFoodAt(i);
                 }
@@ -688,7 +693,7 @@ function physicsTick(dt) {
             for (let i = state.ejects.length - 1; i >= 0; i--) {
                 const e = state.ejects[i];
                 if (e.pid === p.pid && T() - e.born < 500) continue; // CD for own eject
-                if (dist(c.x, c.y, e.x, e.y) < r) {
+                if (dist(c.x, c.y, e.x, e.y) < r + radius(e.m)) {
                     c.m += e.m;
                     state.ejects.splice(i, 1);
                 }

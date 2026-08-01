@@ -859,6 +859,7 @@
                     }
                 });
                 socket.on('match_start', () => {
+                    audio.init();
                     document.getElementById('start').classList.add('hidden');
                     document.getElementById('over').classList.add('hidden');
                     document.getElementById('specBar').classList.add('hidden');
@@ -870,6 +871,7 @@
                     isSpectator = false;
                 });
                 socket.on('joined_lobby', () => {
+                    audio.init();
                     document.getElementById('start').classList.add('hidden');
                     document.getElementById('over').classList.add('hidden');
                     document.getElementById('hostBar').classList.remove('hidden');
@@ -930,10 +932,14 @@
                                 if (Math.hypot(oldC.x - x, oldC.y - y) > 400) {
                                     oldC.x = x; oldC.y = y; oldC.m = mass;
                                 }
+                                // Dead reckoning: измеряем мгновенную скорость для чужих клеток
+                                const dtSnap = avgIntSec > 0 ? avgIntSec : 0.04;
+                                oldC.nvx = (x - oldC.tx) / dtSnap;
+                                oldC.nvy = (y - oldC.ty) / dtSnap;
                                 oldC.tx = x; oldC.ty = y; oldC.tm = mass;
                                 p.cells.push(oldC);
                             } else {
-                                p.cells.push({ id, x, y, m: mass, tx: x, ty: y, tm: mass });
+                                p.cells.push({ id, x, y, m: mass, tx: x, ty: y, tm: mass, nvx: 0, nvy: 0 });
                             }
                             const totalM = p.cells.reduce((s, c) => s + c.m, 0);
                             if (totalM > p.maxMass) p.maxMass = totalM;
@@ -1055,7 +1061,10 @@
         /* ================= WEB AUDIO SYNTHESIZER ================= */
         class SoundEngine {
             constructor() { this.ctx = null; }
-            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+            init() {
+                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+            }
             playEat() {
                 if (!this.ctx) return;
                 const osc = this.ctx.createOscillator(), g = this.ctx.createGain();
@@ -1459,15 +1468,24 @@
                 }
 
                 if (p.isBot) botThink(p, all);
-                else { const m = mouseWorld(); p.tx = m.x; p.ty = m.y; }
+                else {
+                    const m = mouseWorld(); p.tx = m.x; p.ty = m.y;
+                    // magnitude от центра экрана для скорости (классика agar.io)
+                    p.aimLen = Math.hypot(mouse.x - W / 2, mouse.y - H / 2) / cam.s;
+                }
 
                 let pTotal = 0;
 
                 for (const c of p.cells) {
                     let dx = p.tx - c.x, dy = p.ty - c.y, d = Math.hypot(dx, dy);
                     if (d > 1) {
-                        const sp = speedOf(c.m) * Math.min(1, d / 60);
-                        c.x += (dx / d) * sp * dt; c.y += (dy / d) * sp * dt;
+                        const aLen = (p === me) ? (p.aimLen || 0) : 300; // игроки-люди: magnitude, боты: full speed
+                        const speedMul = aLen <= AIM_DEAD ? 0 : Math.min(1, (aLen - AIM_DEAD) / (AIM_FULL - AIM_DEAD));
+                        const sp = speedOf(c.m) * speedMul;
+                        if (sp > 0) {
+                            const moveRatio = Math.min(1, sp * dt / d);
+                            c.x += dx * moveRatio; c.y += dy * moveRatio;
+                        }
                     }
                     c.x += c.bx * dt; c.y += c.by * dt;
                     const dec = Math.pow(0.06, dt); c.bx *= dec; c.by *= dec;
@@ -1518,7 +1536,7 @@
 
                     for (let i = food.length - 1; i >= 0; i--) {
                         const f = food[i];
-                        if (Math.hypot(f.x - c.x, f.y - c.y) < r) {
+                        if (Math.hypot(f.x - c.x, f.y - c.y) < r + radius(f.m)) {
                             c.m += f.m; food.splice(i, 1);
                             if (p === me && Math.random() < 0.15) audio.playEat();
                         }
@@ -1526,7 +1544,7 @@
 
                     for (let i = ejected.length - 1; i >= 0; i--) {
                         const e = ejected[i];
-                        if (c.m > e.m * 1.15 && Math.hypot(e.x - c.x, e.y - c.y) < r) {
+                        if (c.m > e.m * 1.15 && Math.hypot(e.x - c.x, e.y - c.y) < r + radius(e.m)) {
                             c.m += e.m; ejected.splice(i, 1);
                             if (p === me) audio.playEat();
                         }
@@ -1874,17 +1892,19 @@
         // (т.е. чем длиннее расстояние, которое мы "перескочили" за кадр), тем агрессивнее
         // подтягиваем к target. Это даёт плавность при любом пинге без лишнего лага.
         let netLastSnapT = performance.now(), netAvgInterval = 90;
+        let avgIntSec = 0.04; // средний интервал снэпов (сек), для dead reckoning velocity
         function noteSnapArrived() {
             const now = performance.now();
             const dtMs = now - netLastSnapT;
             if (dtMs > 5 && dtMs < 1000) {
-                // Экспоненциальное сглаживание интервала между snap'ами
                 netAvgInterval = netAvgInterval * 0.85 + dtMs * 0.15;
+                avgIntSec = Math.max(0.04, netAvgInterval / 1000);
             }
             netLastSnapT = now;
         }
+        const AIM_DEAD = 60, AIM_FULL = 250; // то же, что на сервере
+
         function updateNet(dt) {
-            const avgIntSec = Math.max(0.05, netAvgInterval / 1000);
             const lerpFactor = Math.min(1, (dt / avgIntSec) * 1.25);
 
             for (const p of players) {
@@ -1895,7 +1915,6 @@
 
                     if (isMine && !isSpectator) {
                         // СВОИ КЛЕТКИ: смешанное предсказание — серверная позиция + локальное движение.
-                        // Без двойного применения сил: коррекция не дополнительная, а бленд.
                         if (c.vx === undefined) { c.vx = 0; c.vy = 0; }
 
                         // Затухание импульса
@@ -1910,11 +1929,14 @@
 
                         const aimX = (mouse.x - W / 2) / cam.s;
                         const aimY = (mouse.y - H / 2) / cam.s;
+                        const aimLen = Math.hypot(aimX, aimY) || 0;
+                        const speedMul = aimLen <= AIM_DEAD ? 0 : Math.min(1, (aimLen - AIM_DEAD) / (AIM_FULL - AIM_DEAD));
+
                         const targetX = cenX + aimX, targetY = cenY + aimY;
                         const tdx = targetX - c.x, tdy = targetY - c.y;
                         const tDist = Math.hypot(tdx, tdy);
-                        if (tDist > 5) {
-                            const spd = speedOf(c.m);
+                        if (tDist > 5 && speedMul > 0) {
+                            const spd = speedOf(c.m) * speedMul;
                             const moveRatio = Math.min(1, spd * dt / tDist);
                             c.x += tdx * moveRatio;
                             c.y += tdy * moveRatio;
@@ -1924,23 +1946,34 @@
                         c.x = clamp(c.x, 15, WORLD - 15);
                         c.y = clamp(c.y, 15, WORLD - 15);
 
-                        // Бленд с серверной позицией: предсказание важнее, но если разошлось — плавный подтяг.
-                        // При ошибке < 30 игнорируем сервер, 30–250 — плавный снэп, > 250 — мгновенный.
+                        // Бленд с серверной позицией
                         const ex = c.tx - c.x, ey = c.ty - c.y;
                         const err = Math.hypot(ex, ey);
                         if (err > 250) {
                             c.x = c.tx; c.y = c.ty;
                         } else if (err > 30) {
-                            // alpha: 0 при err=30, 1 при err=250
                             const alpha = Math.min(1, (err - 30) / 220);
                             const corr = alpha * lerpFactor;
                             c.x += ex * corr; c.y += ey * corr;
                         }
                         if (c.tm !== undefined) c.m += (c.tm - c.m) * lerpFactor;
                     } else {
-                        // ЧУЖИЕ клетки: чистая интерполяция между серверными снапами
-                        c.x += (c.tx - c.x) * lerpFactor;
-                        c.y += (c.ty - c.y) * lerpFactor;
+                        // ЧУЖИЕ клетки: dead reckoning — продолжаем движение по последней
+                        // измеренной скорости + мягкий lerp к серверной цели
+                        if (c.nvx === undefined) { c.nvx = 0; c.nvy = 0; }
+
+                        // Движение по предсказанной скорости
+                        c.x += c.nvx * dt;
+                        c.y += c.nvy * dt;
+
+                        // Мягкий lerp к серверной позиции (0.6 вместо 1.25 — чтобы не было рывков)
+                        c.x += (c.tx - c.x) * lerpFactor * 0.6;
+                        c.y += (c.ty - c.y) * lerpFactor * 0.6;
+
+                        // Затухание velocity если клетка почти на месте
+                        const eDist = Math.hypot(c.tx - c.x, c.ty - c.y);
+                        if (eDist < 10) { c.nvx *= 0.5; c.nvy *= 0.5; }
+
                         if (c.tm !== undefined) c.m += (c.tm - c.m) * lerpFactor;
                     }
                 }
@@ -2066,6 +2099,7 @@
         if (elCustomUrl) elCustomUrl.oninput = () => localStorage.setItem('agario_avatar', elCustomUrl.value.trim());
 
         function play() {
+            audio.init(); // AudioContext нужен user gesture в мультиплеере (initGame не вызывается)
             startS.classList.add('hidden'); overS.classList.add('hidden');
             const nickname = document.getElementById('nick').value.trim() || 'Игрок';
             const col = elColor ? elColor.value : '#00ffff';
