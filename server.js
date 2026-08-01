@@ -527,13 +527,14 @@ function physicsTick(dt) {
             c.x = clamp(c.x, 15, CFG.MAP - 15);
             c.y = clamp(c.y, 15, CFG.MAP - 15);
 
-            // Mass Decay & Zone Damage
-            let decayRate = CFG.DECAY_BASE + c.m * CFG.DECAY_MASS;
-            if (p.rank <= 3) decayRate *= CFG.TOP_MULT[p.rank - 1];
+            // Mass Decay (постепенная усушка только для массы выше стартовой, не опускает ниже START_MASS)
+            if (c.m > CFG.START_MASS) {
+                let decayRate = CFG.DECAY_BASE + c.m * CFG.DECAY_MASS;
+                if (p.rank <= 3) decayRate *= CFG.TOP_MULT[p.rank - 1];
+                c.m = Math.max(CFG.START_MASS, c.m - c.m * decayRate * dt);
+            }
 
-            c.m -= c.m * decayRate * dt;
-
-            // Check Zone damage
+            // Check Zone damage (урон от токсичной зоны за пределами круга)
             const dToZone = dist(c.x, c.y, curZone.x, curZone.y);
             if (dToZone > curZone.r) {
                 const zoneDmg = curZone.dps + c.m * CFG.ZONE_PCT_DPS;
