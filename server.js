@@ -94,6 +94,7 @@ const state = {
     winner: null,
     startedCount: 0,
     netFrame: 0,
+    hostPid: null,
 };
 
 /* ---------------------- FACTORIES ---------------------- */
@@ -309,6 +310,17 @@ function popCellOnVirus(p, cellIdx) {
 }
 
 /* ---------------------- MATCH FLOW & BOT AI ---------------------- */
+function updateHost() {
+    const readyPlayers = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && (p.status === 'ready' || p.status === 'alive'));
+    if (readyPlayers.length > 0) {
+        if (!readyPlayers.some(p => p.pid === state.hostPid)) {
+            state.hostPid = readyPlayers[0].pid;
+        }
+    } else {
+        state.hostPid = null;
+    }
+}
+
 function getAlivePlayers() {
     return Array.from(state.players.values()).filter(p => p.status === 'alive');
 }
@@ -425,6 +437,19 @@ function physicsTick(dt) {
     updateBots();
 
     if (state.phase === 'lobby') {
+        updateHost();
+        // Allow movement for players walking around in lobby, but no eating or zone damage
+        for (const p of state.players.values()) {
+            if (!p.hasJoined || (p.status !== 'ready' && p.status !== 'alive')) continue;
+            for (const c of p.cells) {
+                const len = Math.hypot(p.aim.x, p.aim.y) || 1;
+                const spd = speedOf(c.m);
+                c.x += (p.aim.x / len) * spd * dt;
+                c.y += (p.aim.y / len) * spd * dt;
+                c.x = clamp(c.x, 15, CFG.MAP - 15);
+                c.y = clamp(c.y, 15, CFG.MAP - 15);
+            }
+        }
         const humans = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && p.status === 'ready');
         if (humans.length >= CFG.MIN_HUMANS) {
             if (state.cdEnd === 0) {
@@ -701,13 +726,18 @@ function broadcastTick() {
         const p = state.players.get(pid);
 
         if (state.phase === 'lobby') {
+            updateHost();
+            const readyPlayers = Array.from(state.players.values()).filter(x => !x.isBot && x.hasJoined && (x.status === 'ready' || x.status === 'alive'));
+            const isHost = (p && p.pid === state.hostPid);
             socket.emit('lobby_state', {
                 phase: 'lobby',
                 cd: state.cdEnd ? Math.max(0, Math.ceil((state.cdEnd - T()) / 1000)) : null,
-                players: Array.from(state.players.values()).filter(x => !x.isBot).map(x => x.name),
-                botCount: CFG.BOT_FILL,
+                readyCount: readyPlayers.length,
+                isHost: isHost,
+                hostName: readyPlayers[0] ? readyPlayers[0].name : '',
+                minHumans: 2,
             });
-            continue;
+            if (!p || !p.hasJoined) continue;
         }
 
         // Determine viewport center & zoom radius
@@ -819,8 +849,34 @@ io.on('connection', (socket) => {
             socket.emit('joined_spectator');
         } else {
             player.status = 'ready';
+            player.cells = [];
+            player.kills = 0;
+            player.total = CFG.START_MASS;
+            player.maxMass = CFG.START_MASS;
+            const curZone = getCurrentZone();
+            const ang = Math.random() * Math.PI * 2;
+            const r = Math.sqrt(Math.random()) * (curZone.r * 0.5);
+            const x = clamp(curZone.x + Math.cos(ang) * r, 100, CFG.MAP - 100);
+            const y = clamp(curZone.y + Math.sin(ang) * r, 100, CFG.MAP - 100);
+            player.cells.push(createCell(player, x, y, CFG.START_MASS));
+            updateHost();
             socket.emit('joined_lobby');
         }
+    });
+
+    socket.on('host_start_game', () => {
+        updateHost();
+        if (player.pid !== state.hostPid) {
+            socket.emit('admin_error', 'Только первый игрок (хост) может начать игру!');
+            return;
+        }
+        const readyPlayers = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && (p.status === 'ready' || p.status === 'alive'));
+        if (readyPlayers.length < 2) {
+            socket.emit('admin_error', 'Для запуска игры требуется минимум 2 игрока!');
+            return;
+        }
+        state.cdEnd = 0;
+        startMatch();
     });
 
     socket.on('aim', (data) => {

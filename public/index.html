@@ -616,6 +616,12 @@
     <div id="killfeed"></div>
     <div id="hint">Мышь — направление · Space — разделиться · W — выброс массы</div>
 
+    <!-- HOST / LOBBY TOOLBAR -->
+    <div id="hostBar" class="hidden" style="position:absolute; top:20px; left:50%; transform:translateX(-50%); z-index:7; display:flex; align-items:center; gap:12px; background:rgba(14, 18, 30, 0.9); padding:10px 22px; border-radius:30px; border:1px solid rgba(0, 240, 255, 0.4); backdrop-filter:blur(12px); box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+        <span id="hostStatusText" style="font-size:13px; font-weight:700; color:#ffe06a;">⏳ ОЖИДАНИЕ ИГРОКОВ (1/2)...</span>
+        <button id="btnHostStart" class="spec-btn hidden" style="background:linear-gradient(135deg, #00f0ff, #7000ff); color:#fff; font-weight:800; padding:8px 18px; border:none; cursor:pointer;">🚀 НАЧАТЬ ИГРУ</button>
+    </div>
+
     <!-- SPECTATOR TOOLBAR -->
     <div id="specBar" class="hidden">
         <span>👁️ Наблюдение:</span>
@@ -801,38 +807,39 @@
                     }
                 });
                 socket.on('lobby_state', (data) => {
-                    const nb = document.getElementById('netBadge');
-                    if (!nb) return;
+                    const hb = document.getElementById('hostBar');
+                    const ht = document.getElementById('hostStatusText');
+                    const btnH = document.getElementById('btnHostStart');
+
                     if (data.cd) {
-                        nb.style.color = '#00f0ff';
-                        nb.innerHTML = `<span class="status-dot" style="background:#00f0ff;box-shadow:0 0 10px #00f0ff;"></span> 🚀 СТАРТ ЧЕРЕЗ ${data.cd} СЕК`;
+                        if (ht) ht.innerText = `🚀 СТАРТ ЧЕРЕЗ ${data.cd} СЕК...`;
+                        if (btnH) btnH.classList.add('hidden');
+                    } else if (data.isHost) {
+                        if (hb) hb.classList.remove('hidden');
+                        if (data.readyCount >= 2) {
+                            if (ht) ht.innerText = `👑 ТЫ ОРГАНИЗАТОР · Готово игроков: ${data.readyCount}`;
+                            if (btnH) btnH.classList.remove('hidden');
+                        } else {
+                            if (ht) ht.innerText = `👑 ТЫ ОРГАНИЗАТОР · Ждем второго игрока (${data.readyCount}/2)...`;
+                            if (btnH) btnH.classList.add('hidden');
+                        }
                     } else {
-                        const count = (data.players ? data.players.length : 1);
-                        const min = data.minHumans || 2;
-                        nb.style.color = '#ffaa00';
-                        nb.innerHTML = `<span class="status-dot" style="background:#ffaa00;box-shadow:0 0 10px #ffaa00;"></span> ⏳ ОЖИДАНИЕ ИГРОКОВ (${count}/${min})`;
+                        if (btnH) btnH.classList.add('hidden');
+                        if (ht) ht.innerText = `⏳ ОЖИДАНИЕ СТАРТА ИГРЫ ${data.hostName ? '(' + data.hostName + ')' : ''} · Игроков: ${data.readyCount}/2`;
                     }
                 });
                 socket.on('match_start', () => {
-                    const pb = document.getElementById('playBtn');
-                    if (pb) {
-                        pb.innerText = 'В БОЙ';
-                        pb.disabled = false;
-                        pb.style.opacity = '1';
-                    }
                     document.getElementById('start').classList.add('hidden');
                     document.getElementById('over').classList.add('hidden');
                     document.getElementById('specBar').classList.add('hidden');
+                    document.getElementById('hostBar').classList.add('hidden');
                     running = true;
                     isSpectator = false;
                 });
                 socket.on('joined_lobby', () => {
-                    const pb = document.getElementById('playBtn');
-                    if (pb) {
-                        pb.innerText = '⏳ В ОЖИДАНИИ СТАРТА...';
-                        pb.disabled = true;
-                        pb.style.opacity = '0.7';
-                    }
+                    document.getElementById('start').classList.add('hidden');
+                    document.getElementById('over').classList.add('hidden');
+                    document.getElementById('hostBar').classList.remove('hidden');
                     running = true;
                     isSpectator = false;
                     lastT = performance.now();
@@ -1878,6 +1885,12 @@
 
         document.getElementById('playBtn').onclick = play;
         document.getElementById('againBtn').onclick = returnToMenu;
+        const btnHostStart = document.getElementById('btnHostStart');
+        if (btnHostStart) {
+            btnHostStart.onclick = () => {
+                if (socket) socket.emit('host_start_game');
+            };
+        }
         document.getElementById('nick').addEventListener('keydown', e => { if (e.key === 'Enter') play(); });
 
         const specSelect = document.getElementById('specSelect');
