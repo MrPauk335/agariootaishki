@@ -107,6 +107,7 @@ function newPlayer(sid, name, isBot = false) {
         cells: [],
         aim: { x: 0, y: -200 },
         total: 0, rank: 99, kills: 0, maxMass: 0, place: 0,
+        matchTimeStart: 0,          // T() старта текущего матча для этого игрока (0 = не в матче)
         lastSplit: 0, lastEject: 0,
         specPid: null, killerName: null,
         bot: { targetTime: 0, tx: 2000, ty: 2000, aggressive: rnd(0.3, 0.9) },
@@ -346,6 +347,9 @@ function startMatch() {
         p.kills = 0;
         p.total = CFG.START_MASS;
         p.maxMass = CFG.START_MASS;
+        p.matchTimeStart = T();
+        p.place = 0;
+        p.killerName = null;
 
         const ang = Math.random() * Math.PI * 2;
         const r = Math.sqrt(Math.random()) * (state.zone.r * 0.6);
@@ -384,6 +388,7 @@ function killPlayer(victim, killerName = 'Zone') {
                 killer: killerName,
                 kills: victim.kills,
                 maxMass: Math.round(victim.maxMass),
+                you: { place: victim.place, kills: victim.kills, maxMass: Math.round(victim.maxMass), killer: killerName },
             });
         }
     }
@@ -404,18 +409,44 @@ function checkMatchEnd() {
 function endMatch(winner) {
     state.phase = 'over';
     state.matchEnd = T();
-    state.winner = winner ? { pid: winner.pid, name: winner.name, kills: winner.kills, mass: Math.round(winner.total) } : null;
 
     if (winner) {
         winner.place = 1;
-        if (winner.sid) {
-            const s = io.sockets.sockets.get(winner.sid);
-            if (s) s.emit('victory', { kills: winner.kills, maxMass: Math.round(winner.maxMass) });
-        }
+        winner.killerName = null;
+    }
+    state.winner = winner ? { pid: winner.pid, name: winner.name, kills: winner.kills, mass: Math.round(winner.total) } : null;
+
+    // Build final results table: every human that took part in this match
+    const participants = Array.from(state.players.values())
+        .filter(p => !p.isBot && p.hasJoined && p.matchTimeStart > 0);
+
+    // Players still alive but without a place (e.g. timeout end): rank by current mass
+    const aliveNoPlace = participants.filter(p => p.status === 'alive' && (!p.place || p.place === 0));
+    aliveNoPlace.sort((a, b) => b.total - a.total);
+    let nextPlace = winner ? 2 : 1;
+    for (const p of aliveNoPlace) { p.place = nextPlace++; }
+
+    const results = participants
+        .map(p => ({
+            pid: p.pid,
+            name: p.name,
+            place: p.place || (winner && p.pid === winner.pid ? 1 : participants.length),
+            kills: p.kills,
+            maxMass: Math.round(p.maxMass),
+            killer: p.killerName,                     // null = survived / won
+            survivedSec: Math.max(0, Math.round(((state.matchEnd - p.matchTimeStart) / 1000))),
+            isWinner: !!(winner && p.pid === winner.pid),
+        }))
+        .sort((a, b) => a.place - b.place);
+
+    if (winner && winner.sid) {
+        const s = io.sockets.sockets.get(winner.sid);
+        if (s) s.emit('victory', { kills: winner.kills, maxMass: Math.round(winner.maxMass), you: { place: 1, kills: winner.kills, maxMass: Math.round(winner.maxMass) } });
     }
 
     io.emit('match_over', {
         winner: state.winner,
+        results: results,
         nextLobbyIn: 10,
     });
 

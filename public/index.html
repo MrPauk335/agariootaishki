@@ -759,6 +759,27 @@
     <div id="over" class="screen hidden">
         <h1 id="overTitle">ТЕБЯ СЪЕЛИ</h1>
         <div id="overInfo" class="small"></div>
+
+        <!-- RESULTS TABLE -->
+        <div id="resultsWrap" class="hidden" style="width:min(680px, 92vw); background:rgba(12,16,28,0.92); border:1px solid rgba(0,240,255,0.25); border-radius:18px; padding:18px 22px; backdrop-filter:blur(14px); box-shadow:0 24px 60px rgba(0,0,0,0.6);">
+            <div style="font-family:'Outfit',sans-serif; font-size:18px; font-weight:800; letter-spacing:1.5px; margin-bottom:12px; text-align:center; color:#00f0ff;">📊 ИТОГИ МАТЧА</div>
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                    <thead>
+                        <tr style="color:#8a91b4; font-size:11px; text-transform:uppercase; letter-spacing:1px; border-bottom:1px solid rgba(255,255,255,0.12);">
+                            <th style="text-align:left; padding:6px 8px;">#</th>
+                            <th style="text-align:left; padding:6px 8px;">Игрок</th>
+                            <th style="text-align:center; padding:6px 8px;">Убийства</th>
+                            <th style="text-align:center; padding:6px 8px;">Макс. масса</th>
+                            <th style="text-align:center; padding:6px 8px;">Прожил</th>
+                            <th style="text-align:left; padding:6px 8px;">Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
         <div style="display:flex; gap:12px;">
             <button id="againBtn" class="main-btn" style="width:160px;">ЕЩЁ РАЗ</button>
             <button id="specBtn" class="main-btn"
@@ -771,6 +792,7 @@
         /* ================= НАСТРОЙКИ & КОНСТАНТЫ ================= */
         let WORLD = 4000;
         let socket = null, isMultiplayer = false, myPid = null;
+        let lastResults = null; // кэш итогов матча для повторного показа на экране gameOver
         const DEFAULT_PROD_SERVER = 'https://agariootaishki.onrender.com';
         const isStaticHost = location.hostname.includes('workers.dev') || location.hostname.includes('pages.dev') || location.hostname.includes('github.io') || location.hostname.includes('netlify.app') || location.hostname.includes('vercel.app');
         let SERVER_URL = new URLSearchParams(window.location.search).get('server') || localStorage.getItem('agario_server_url') || window.SERVER_URL || (isStaticHost ? DEFAULT_PROD_SERVER : '');
@@ -844,6 +866,9 @@
                     document.getElementById('over').classList.add('hidden');
                     document.getElementById('specBar').classList.add('hidden');
                     document.getElementById('hostBar').classList.add('hidden');
+                    const rw = document.getElementById('resultsWrap');
+                    if (rw) rw.classList.add('hidden');
+                    lastResults = null;
                     running = true;
                     isSpectator = false;
                 });
@@ -868,9 +893,10 @@
                     isSpectator = true;
                     const sb = document.getElementById('specBar');
                     if (sb) sb.classList.remove('hidden');
-                    gameOver(d.place || 2);
+                    gameOver(d.place || 2, d.you);
                 });
-                socket.on('victory', () => { gameOver(1); });
+                socket.on('victory', (d) => { gameOver(1, d && d.you); });
+                socket.on('match_over', (d) => { showMatchResults(d); });
                 socket.on('admin_error', (msg) => { alert('❌ Ошибка: ' + msg); });
                 socket.on('settings_updated', () => { alert('✅ Настройки сервера успешно применены!'); });
                 socket.on('snap', (snap) => {
@@ -1866,6 +1892,8 @@
 
         function returnToMenu() {
             overS.classList.add('hidden');
+            const rw = document.getElementById('resultsWrap');
+            if (rw) rw.classList.add('hidden');
             document.getElementById('specBar').classList.add('hidden');
             startS.classList.remove('hidden');
             const pb = document.getElementById('playBtn');
@@ -1880,10 +1908,14 @@
             spectatingTarget = null;
         }
 
-        function gameOver(place) {
+        function gameOver(place, youData) {
             running = true; // Продолжаем рендерить для спектатора
-            document.getElementById('overTitle').innerText = place === 1 ? 'ПОБЕДА ROYALE!' : 'ТЕБЯ СЪЕЛИ';
-            document.getElementById('overInfo').innerText = `Твой результат: #${place}. Макс. масса: ${Math.round(me ? me.maxMass : 0)}`;
+            const mm = youData ? youData.maxMass : (me ? me.maxMass : 0);
+            const kk = youData ? youData.kills : (me ? me.kills : 0);
+            document.getElementById('overTitle').innerText = place === 1 ? 'ПОБЕДА ROYALE! 🏆' : 'ТЕБЯ СЪЕЛИ';
+            document.getElementById('overInfo').innerText = `Твой результат: #${place} · Убийств: ${kk} · Макс. масса: ${Math.round(mm)}`;
+            // Если полная таблица итогов уже пришла — покажем её под заголовком
+            if (lastResults) showMatchResults(lastResults);
             const aliveCount = players.filter(p => !p.dead).length;
             const specBtn = document.getElementById('specBtn');
             if (specBtn) {
@@ -1892,6 +1924,43 @@
             const sb = document.getElementById('specBar');
             if (sb && aliveCount <= 1) sb.classList.add('hidden');
             overS.classList.remove('hidden');
+        }
+
+        // Show full match results table (sent by server at match_over).
+        function showMatchResults(data) {
+            lastResults = data;
+            if (!data || !Array.isArray(data.results) || data.results.length === 0) return;
+
+            const tbody = document.getElementById('resultsBody');
+            if (!tbody) return;
+
+            const fmtTime = (s) => {
+                if (s < 60) return s + 'с';
+                return Math.floor(s / 60) + 'м ' + (s % 60) + 'с';
+            };
+            const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+            let html = '';
+            for (const r of data.results) {
+                const isMe = myPid !== null && r.pid === myPid;
+                const medal = r.place === 1 ? '🥇' : r.place === 2 ? '🥈' : r.place === 3 ? '🥉' : String(r.place);
+                const status = r.isWinner
+                    ? '<span style="color:#ffd700; font-weight:700;">🏆 ПОБЕДИТЕЛЬ</span>'
+                    : (r.killer ? `<span style="color:#ff6b81;">убит: ${esc(r.killer)}</span>` : '<span style="color:#00ff66;">выжил</span>');
+                const rowStyle = isMe
+                    ? 'background:rgba(0,240,255,0.12); border-left:3px solid #00f0ff;'
+                    : 'border-left:3px solid transparent;';
+                html += `<tr style="${rowStyle}">
+                    <td style="padding:8px; font-weight:700;">${medal}</td>
+                    <td style="padding:8px; font-weight:${isMe ? '800' : '500'};">${esc(r.name)}${isMe ? ' <span style="color:#00f0ff; font-size:11px;">(вы)</span>' : ''}</td>
+                    <td style="padding:8px; text-align:center;">${r.kills}</td>
+                    <td style="padding:8px; text-align:center;">${r.maxMass}</td>
+                    <td style="padding:8px; text-align:center; color:#8a91b4;">${fmtTime(r.survivedSec)}</td>
+                    <td style="padding:8px;">${status}</td>
+                </tr>`;
+            }
+            tbody.innerHTML = html;
+            document.getElementById('resultsWrap').classList.remove('hidden');
         }
 
         document.getElementById('playBtn').onclick = play;
