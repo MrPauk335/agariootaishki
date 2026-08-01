@@ -101,7 +101,8 @@ function newPlayer(sid, name, isBot = false) {
     return {
         pid: nid(), sid, name: sanitizeName(name), isBot,
         color: (Math.random() * 10) | 0,
-        status: 'lobby',    // lobby | alive | dead | spectator
+        status: 'menu',    // menu | ready | alive | dead | spectator
+        hasJoined: false,
         cells: [],
         aim: { x: 0, y: -200 },
         total: 0, rank: 99, kills: 0, maxMass: 0, place: 0,
@@ -323,7 +324,7 @@ function startMatch() {
     state.matchStart = T();
     state.winner = null;
 
-    const participants = Array.from(state.players.values()).filter(p => !p.isBot && p.status !== 'spectator');
+    const participants = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && p.status === 'ready');
     state.startedCount = participants.length;
 
     // Spawn cells in zone for all human participants
@@ -351,7 +352,7 @@ function startMatch() {
 
 function killPlayer(victim, killerName = 'Zone') {
     if (victim.status !== 'alive') return;
-    victim.status = 'dead';
+    victim.status = 'spectator';
     victim.cells = [];
     victim.killerName = killerName;
     victim.place = getAlivePlayers().length + 1;
@@ -409,7 +410,10 @@ function endMatch(winner) {
     setTimeout(() => {
         state.phase = 'lobby';
         for (const p of state.players.values()) {
-            if (!p.isBot) p.status = 'lobby';
+            if (!p.isBot) {
+                p.status = 'menu';
+                p.hasJoined = false;
+            }
         }
     }, 10000);
 }
@@ -421,7 +425,7 @@ function physicsTick(dt) {
     updateBots();
 
     if (state.phase === 'lobby') {
-        const humans = Array.from(state.players.values()).filter(p => !p.isBot);
+        const humans = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && p.status === 'ready');
         if (humans.length >= CFG.MIN_HUMANS) {
             if (state.cdEnd === 0) {
                 state.cdEnd = T() + CFG.LOBBY_MS;
@@ -809,27 +813,12 @@ io.on('connection', (socket) => {
         } else {
             player.avatar = null;
         }
+        player.hasJoined = true;
         if (state.phase === 'live') {
-            const curZone = getCurrentZone();
-            if (curZone.r > 300) {
-                player.status = 'alive';
-                player.cells = [];
-                player.kills = 0;
-                player.total = CFG.START_MASS;
-                player.maxMass = CFG.START_MASS;
-                const ang = Math.random() * Math.PI * 2;
-                const r = Math.sqrt(Math.random()) * (curZone.r * 0.5);
-                const x = clamp(curZone.x + Math.cos(ang) * r, 100, CFG.MAP - 100);
-                const y = clamp(curZone.y + Math.sin(ang) * r, 100, CFG.MAP - 100);
-                player.cells.push(createCell(player, x, y, CFG.START_MASS));
-                state.startedCount++;
-                socket.emit('joined_lobby');
-            } else {
-                player.status = 'spectator';
-                socket.emit('joined_spectator');
-            }
+            player.status = 'spectator';
+            socket.emit('joined_spectator');
         } else {
-            player.status = 'lobby';
+            player.status = 'ready';
             socket.emit('joined_lobby');
         }
     });

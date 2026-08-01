@@ -838,12 +838,20 @@
                     lastT = performance.now();
                 });
                 socket.on('joined_spectator', () => {
+                    document.getElementById('start').classList.add('hidden');
+                    document.getElementById('over').classList.add('hidden');
+                    document.getElementById('specBar').classList.remove('hidden');
                     running = true;
                     isSpectator = true;
                     lastT = performance.now();
                 });
                 socket.on('kill_feed', (d) => { addKillfeed(d.killer, d.victim); });
-                socket.on('eliminated', (d) => { gameOver(d.place || 2); });
+                socket.on('eliminated', (d) => {
+                    isSpectator = true;
+                    const sb = document.getElementById('specBar');
+                    if (sb) sb.classList.remove('hidden');
+                    gameOver(d.place || 2);
+                });
                 socket.on('victory', () => { gameOver(1); });
                 socket.on('admin_error', (msg) => { alert('❌ Ошибка: ' + msg); });
                 socket.on('settings_updated', () => { alert('✅ Настройки сервера успешно применены!'); });
