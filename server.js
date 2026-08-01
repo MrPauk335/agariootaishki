@@ -758,7 +758,13 @@ function broadcastTick() {
         // Roster mapping for names
         const roster = {};
         for (const op of state.players.values()) {
-            if (op.status === 'alive') roster[op.pid] = op.name;
+            if (op.status === 'alive') {
+                roster[op.pid] = {
+                    n: op.name,
+                    c: typeof op.color === 'string' ? op.color : null,
+                    a: op.avatar || null
+                };
+            }
         }
 
         socket.emit('snap', {
@@ -782,6 +788,8 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/avatars', express.static(path.join(__dirname, 'avatars')));
+app.use('/avatars', express.static(path.join(__dirname, 'public/avatars')));
 
 io.on('connection', (socket) => {
     let player = newPlayer(socket.id, 'Player');
@@ -792,6 +800,12 @@ io.on('connection', (socket) => {
 
     socket.on('join', (data) => {
         player.name = sanitizeName(data && data.name);
+        if (data && typeof data.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(data.color)) {
+            player.color = data.color;
+        }
+        if (data && typeof data.avatar === 'string') {
+            player.avatar = data.avatar.slice(0, 150);
+        }
         if (state.phase === 'live') {
             const curZone = getCurrentZone();
             if (curZone.r > 300) {

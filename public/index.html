@@ -443,6 +443,21 @@
         <h1>ОГАРИО ROYALE</h1>
         <div id="netBadge" style="font-size:13px; font-weight:bold; color:#00ff66; margin-bottom:12px;">🟢 ЕДИНЫЙ ГЛОБАЛЬНЫЙ СЕРВЕР</div>
         <input id="nick" maxlength="14" placeholder="Твой ник" value="Игрок">
+        <div class="custom-row" style="display:flex; gap:10px; align-items:center; margin: 10px 0; background: rgba(255,255,255,0.06); padding: 8px 14px; border-radius: 8px;">
+            <label for="setPlayerColor" style="font-size:13px; color:#ccc;">Цвет:</label>
+            <input type="color" id="setPlayerColor" value="#00ffff" style="width:36px; height:28px; border:none; cursor:pointer; background:transparent;">
+            <label for="setPlayerAvatar" style="font-size:13px; color:#ccc; margin-left:10px;">Аватар:</label>
+            <select id="setPlayerAvatar" style="background:#1b2233; color:#fff; border:1px solid #334; padding:5px 8px; border-radius:6px; font-size:13px; outline:none;">
+                <option value="">Без аватара</option>
+                <option value="avatars/бобёр.png">🦫 Бобёр</option>
+                <option value="avatars/давидик.png">👤 Давидик</option>
+                <option value="avatars/даниилчик.png">👤 Даниилчик</option>
+                <option value="avatars/зеля.png">👤 Зеля</option>
+                <option value="avatars/пахан когда весёлый.png">😁 Пахан (весёлый)</option>
+                <option value="avatars/пахан.png">😎 Пахан</option>
+                <option value="avatars/урофем.png">👤 Урофем</option>
+            </select>
+        </div>
         <div style="display:flex; gap:10px;">
             <button id="playBtn" class="main-btn" style="width:190px;">В БОЙ</button>
             <button id="openSettingsBtn" class="mode-btn hidden" style="padding:14px 16px; font-weight:700; background:#1b2233;">⚙️ АДМИН</button>
@@ -1343,9 +1358,11 @@
             for (const p of players) {
                 if (p.dead || p.cells.length === 0) continue;
                 const c = p.cells.reduce((a, b) => a.m > b.m ? a : b);
-                ctx.fillStyle = p === me ? '#ffe06a' : 'rgba(255,255,255,0.5)';
-                const r = p === me ? 3.5 : 2;
+                const isMe = p === me;
+                ctx.fillStyle = isMe ? '#ffe06a' : (p.color || '#ff3366');
+                const r = isMe ? 4 : 3;
                 ctx.beginPath(); ctx.arc(X + c.x * k, Y + c.y * k, r, 0, Math.PI * 2); ctx.fill();
+                ctx.lineWidth = 1; ctx.strokeStyle = '#000'; ctx.stroke();
             }
         }
 
@@ -1364,8 +1381,14 @@
             hudT -= dt; if (hudT > 0) return; hudT = 0.2;
 
             const score = me && !me.dead ? Math.round(me.cells.reduce((s, c) => s + c.m, 0)) : 0;
+            const aliveCount = players.filter(p => !p.dead).length;
             document.getElementById('valMass').innerText = score;
-            document.getElementById('valAlive').innerText = players.filter(p => !p.dead).length;
+            document.getElementById('valAlive').innerText = aliveCount;
+            const sb = document.getElementById('specBar');
+            if (sb) {
+                if (aliveCount <= 1 && !sb.classList.contains('hidden')) sb.classList.add('hidden');
+                else if (aliveCount > 1 && isSpectator && sb.classList.contains('hidden')) sb.classList.remove('hidden');
+            }
             if (isSpectator && typeof updateSpectatorSelect === 'function') updateSpectatorSelect();
 
             if (isBRMode) {
@@ -1421,11 +1444,22 @@
         /* ================= ИНТЕРФЕЙС И ЭКРАНЫ ================= */
         const startS = document.getElementById('start'), overS = document.getElementById('over');
 
+        const elColor = document.getElementById('setPlayerColor');
+        const elAvatar = document.getElementById('setPlayerAvatar');
+        if (elColor) elColor.value = localStorage.getItem('agario_color') || '#00ffff';
+        if (elAvatar) elAvatar.value = localStorage.getItem('agario_avatar') || '';
+        if (elColor) elColor.onchange = () => localStorage.setItem('agario_color', elColor.value);
+        if (elAvatar) elAvatar.onchange = () => localStorage.setItem('agario_avatar', elAvatar.value);
+
         function play() {
             startS.classList.add('hidden'); overS.classList.add('hidden');
             const nickname = document.getElementById('nick').value.trim() || 'Игрок';
+            const col = elColor ? elColor.value : '#00ffff';
+            const ava = elAvatar ? elAvatar.value : '';
+            localStorage.setItem('agario_color', col);
+            localStorage.setItem('agario_avatar', ava);
             if (socket) {
-                socket.emit('join', { name: nickname });
+                socket.emit('join', { name: nickname, color: col, avatar: ava });
             }
         }
 
@@ -1433,6 +1467,13 @@
             running = true; // Продолжаем рендерить для спектатора
             document.getElementById('overTitle').innerText = place === 1 ? 'ПОБЕДА ROYALE!' : 'ТЕБЯ СЪЕЛИ';
             document.getElementById('overInfo').innerText = `Твой результат: #${place}. Макс. масса: ${Math.round(me ? me.maxMass : 0)}`;
+            const aliveCount = players.filter(p => !p.dead).length;
+            const specBtn = document.getElementById('specBtn');
+            if (specBtn) {
+                specBtn.style.display = aliveCount <= 1 ? 'none' : 'inline-block';
+            }
+            const sb = document.getElementById('specBar');
+            if (sb && aliveCount <= 1) sb.classList.add('hidden');
             overS.classList.remove('hidden');
         }
 
@@ -1475,6 +1516,11 @@
         }
 
         document.getElementById('specBtn').onclick = () => {
+            const alive = players.filter(p => !p.dead);
+            if (alive.length <= 1) {
+                alert('На сервере осталось 1 или меньше игроков — режим наблюдения недоступен.');
+                return;
+            }
             overS.classList.add('hidden');
             isSpectator = true;
             document.getElementById('specBar').classList.remove('hidden');
