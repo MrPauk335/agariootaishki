@@ -464,6 +464,10 @@
             </div>
 
             <div class="settings-grid">
+                <div class="set-group" style="grid-column: 1 / -1;">
+                    <label for="setServerUrl">Адрес Node.js сервера (например, https://app.onrender.com)</label>
+                    <input type="text" id="setServerUrl" placeholder="Оставьте пустым для локального сервера" style="text-align: left;">
+                </div>
                 <div class="set-group">
                     <label for="setZoneWait">Пауза до сжатия (сек)</label>
                     <input type="number" id="setZoneWait" value="5" min="0" max="60">
@@ -517,10 +521,22 @@
         /* ================= НАСТРОЙКИ & КОНСТАНТЫ ================= */
         let WORLD = 4000;
         let socket = null, isMultiplayer = false, myPid = null;
-        let SERVER_URL = window.SERVER_URL || '';
-        if (typeof io !== 'undefined') {
+        let SERVER_URL = new URLSearchParams(window.location.search).get('server') || localStorage.getItem('agario_server_url') || window.SERVER_URL || '';
+
+        function connectToServer(url) {
+            if (typeof io === 'undefined') return;
+            const isStaticHost = location.hostname.includes('workers.dev') || location.hostname.includes('pages.dev') || location.hostname.includes('github.io') || location.hostname.includes('netlify.app') || location.hostname.includes('vercel.app');
+            if (!url && isStaticHost) {
+                const nb = document.getElementById('netBadge');
+                if (nb) {
+                    nb.style.color = '#ffcc00';
+                    nb.innerText = '🟡 CLOUDFLARE СТАТИКА: УКАЖИТЕ URL СЕРВЕРА В НАСТРОЙКАХ РАУНДА ИЛИ ?server=URL';
+                }
+                return;
+            }
             try {
-                socket = io(SERVER_URL);
+                if (socket) socket.disconnect();
+                socket = io(url);
                 socket.on('welcome', (data) => {
                     isMultiplayer = true;
                     myPid = data.pid;
@@ -643,6 +659,7 @@
                 console.log('Socket.IO fail:', e);
             }
         }
+        connectToServer(SERVER_URL);
         let FOOD_MAX = 1100;
         let VIRUS_COUNT = 24;
         let BOT_MAX = 28;
@@ -1498,10 +1515,24 @@
         const closeSettingsBtn = document.getElementById('closeSettingsBtn');
         const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
-        if (openSettingsBtn) openSettingsBtn.onclick = () => settingsModal && settingsModal.classList.remove('hidden');
+        if (openSettingsBtn) openSettingsBtn.onclick = () => {
+            if (settingsModal) settingsModal.classList.remove('hidden');
+            const elServer = document.getElementById('setServerUrl');
+            if (elServer) elServer.value = SERVER_URL || '';
+        };
         if (closeSettingsBtn) closeSettingsBtn.onclick = () => settingsModal && settingsModal.classList.add('hidden');
 
         function applySettingsFromUI() {
+            const elServer = document.getElementById('setServerUrl');
+            if (elServer) {
+                const newUrl = elServer.value.trim();
+                localStorage.setItem('agario_server_url', newUrl);
+                if (newUrl !== SERVER_URL) {
+                    SERVER_URL = newUrl;
+                    connectToServer(SERVER_URL);
+                }
+            }
+
             const elWait = document.getElementById('setZoneWait');
             const elDur = document.getElementById('setZoneDuration');
             const elDps = document.getElementById('setZoneDps');
