@@ -14,7 +14,7 @@ const CFG = {
     PORT: +(process.env.PORT || 3000),
     MAP: 4000,
     SIM_HZ: 30,
-    NET_HZ: 30,
+    NET_HZ: 15, // хватает 15 тиков/сек: клиент интерполирует позиции. Снижает трафик snap'ов вдвое.
     FOOD_NET_EVERY: 4,
 
     MAX_PLAYERS: 20,

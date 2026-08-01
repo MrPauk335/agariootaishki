@@ -899,6 +899,7 @@
                 socket.on('snap', (snap) => {
                     if (!isMultiplayer) return;
                     running = true;
+                    noteSnapArrived(); // для адаптивной интерполяции
 
                     // 1. Игроки и клетки (с поддержкой плавной интерполяции)
                     const pMap = new Map();
@@ -1159,10 +1160,27 @@
         }
 
         /* ================= ВВОД И УПРАВЛЕНИЕ ================= */
+        // Троттлим сетевые пакеты aim: серверу нужно идти на ~20 Гц, не на частоте mousemove.
+        // При ping'е ~250 мс каждый лишний пакет занимает место в очереди и добавляет задержку.
+        let _aimLastSent = 0, _aimLastX = 0, _aimLastY = 0, _aimScheduled = false;
+        const AIM_MIN_INTERVAL_MS = 50;      // ~20 Гц
+        const AIM_MIN_DELTA_PX = 2;          // не шлём, если не сдвинулось заметно
+
         function sendNetAim() {
-            if (isMultiplayer && socket && running) {
-                socket.emit('aim', { x: (mouse.x - W / 2) / cam.s, y: (mouse.y - H / 2) / cam.s });
+            if (!isMultiplayer || !socket || !running) return;
+            const now = performance.now();
+            const dx = mouse.x - _aimLastX, dy = mouse.y - _aimLastY;
+            if ((dx * dx + dy * dy) < AIM_MIN_DELTA_PX * AIM_MIN_DELTA_PX) return; // не изменилось
+            if (now - _aimLastSent < AIM_MIN_INTERVAL_MS) {
+                if (!_aimScheduled) {
+                    _aimScheduled = true;
+                    setTimeout(() => { _aimScheduled = false; sendNetAim(); },
+                        AIM_MIN_INTERVAL_MS - (now - _aimLastSent) + 1);
+                }
+                return;
             }
+            _aimLastSent = now; _aimLastX = mouse.x; _aimLastY = mouse.y;
+            socket.emit('aim', { x: (mouse.x - W / 2) / cam.s, y: (mouse.y - H / 2) / cam.s });
         }
         addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; sendNetAim(); });
         addEventListener('touchmove', e => {
@@ -1758,8 +1776,26 @@
         }
 
         /* ================= ПЛАВНАЯ ИНТЕРПОЛЯЦИЯ СЕТЕВОГО РЕЖИМА ================= */
+        // lerpFactor вычисляется от задержки между snap'ами (netT): чем больше задержка
+        // (т.е. чем длиннее расстояние, которое мы "перескочили" за кадр), тем агрессивнее
+        // подтягиваем к target. Это даёт плавность при любом пинге без лишнего лага.
+        let netLastSnapT = performance.now(), netAvgInterval = 90;
+        function noteSnapArrived() {
+            const now = performance.now();
+            const dtMs = now - netLastSnapT;
+            if (dtMs > 5 && dtMs < 1000) {
+                // Экспоненциальное сглаживание интервала между snap'ами
+                netAvgInterval = netAvgInterval * 0.85 + dtMs * 0.15;
+            }
+            netLastSnapT = now;
+        }
         function updateNet(dt) {
-            const lerpFactor = Math.min(1, dt * 25);
+            // dt — секунды с предыдущего кадра (≈0.016 при 60 fps).
+            // Целимся интерполировать пол дистанцию примерно за один сетевой интервал:
+            // factor = dt / avgSnapInterval. Чтобы даже при большом пинге клетка "догоняла" target.
+            const avgIntSec = Math.max(0.05, netAvgInterval / 1000);
+            const base = Math.min(1, dt / avgIntSec);
+            const lerpFactor = Math.min(1, base * 1.25); // чуть быстрее, чтобы не отставать
             for (const p of players) {
                 if (p.dead) continue;
                 for (const c of p.cells) {
