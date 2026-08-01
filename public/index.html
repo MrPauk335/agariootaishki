@@ -443,20 +443,28 @@
         <h1>ОГАРИО ROYALE</h1>
         <div id="netBadge" style="font-size:13px; font-weight:bold; color:#00ff66; margin-bottom:12px;">🟢 ЕДИНЫЙ ГЛОБАЛЬНЫЙ СЕРВЕР</div>
         <input id="nick" maxlength="14" placeholder="Твой ник" value="Игрок">
-        <div class="custom-row" style="display:flex; gap:10px; align-items:center; margin: 10px 0; background: rgba(255,255,255,0.06); padding: 8px 14px; border-radius: 8px;">
-            <label for="setPlayerColor" style="font-size:13px; color:#ccc;">Цвет:</label>
-            <input type="color" id="setPlayerColor" value="#00ffff" style="width:36px; height:28px; border:none; cursor:pointer; background:transparent;">
-            <label for="setPlayerAvatar" style="font-size:13px; color:#ccc; margin-left:10px;">Аватар:</label>
-            <select id="setPlayerAvatar" style="background:#1b2233; color:#fff; border:1px solid #334; padding:5px 8px; border-radius:6px; font-size:13px; outline:none;">
-                <option value="">Без аватара</option>
-                <option value="avatars/бобёр.png">🦫 Бобёр</option>
-                <option value="avatars/давидик.png">👤 Давидик</option>
-                <option value="avatars/даниилчик.png">👤 Даниилчик</option>
-                <option value="avatars/зеля.png">👤 Зеля</option>
-                <option value="avatars/пахан когда весёлый.png">😁 Пахан (весёлый)</option>
-                <option value="avatars/пахан.png">😎 Пахан</option>
-                <option value="avatars/урофем.png">👤 Урофем</option>
-            </select>
+        <div class="custom-row" style="display:flex; flex-direction:column; gap:8px; margin: 10px 0; background: rgba(255,255,255,0.06); padding: 10px 14px; border-radius: 8px; width:100%; max-width:320px;">
+            <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <label for="setPlayerColor" style="font-size:13px; color:#ccc;">Цвет:</label>
+                    <input type="color" id="setPlayerColor" value="#00ffff" style="width:36px; height:28px; border:none; cursor:pointer; background:transparent;">
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <label for="setPlayerAvatar" style="font-size:13px; color:#ccc;">Аватар:</label>
+                    <select id="setPlayerAvatar" style="background:#1b2233; color:#fff; border:1px solid #334; padding:5px 8px; border-radius:6px; font-size:13px; outline:none;">
+                        <option value="">Без аватара</option>
+                        <option value="avatars/бобёр.png">🦫 Бобёр</option>
+                        <option value="avatars/давидик.png">👤 Давидик</option>
+                        <option value="avatars/даниилчик.png">👤 Даниилчик</option>
+                        <option value="avatars/зеля.png">👤 Зеля</option>
+                        <option value="avatars/пахан когда весёлый.png">😁 Пахан (весёлый)</option>
+                        <option value="avatars/пахан.png">😎 Пахан</option>
+                        <option value="avatars/урофем.png">👤 Урофем</option>
+                        <option value="custom">🌐 Свой URL...</option>
+                    </select>
+                </div>
+            </div>
+            <input type="text" id="setCustomAvatarUrl" placeholder="Вставь URL картинки (https://...)" style="background:#1b2233; color:#fff; border:1px solid #334; padding:6px 10px; border-radius:6px; font-size:13px; outline:none; display:none; width:100%;">
         </div>
         <div style="display:flex; gap:10px;">
             <button id="playBtn" class="main-btn" style="width:190px;">В БОЙ</button>
@@ -604,10 +612,14 @@
                             let p = pMap.get(pid);
                             if (!p) {
                                 const oldP = oldPMap.get(pid);
-                                const name = (snap.r && snap.r[pid]) ? snap.r[pid] : (oldP ? oldP.name : `Игрок ${pid}`);
+                                const rData = (snap.r && snap.r[pid]) ? snap.r[pid] : null;
+                                const nStr = rData ? (typeof rData === 'object' ? (rData.n || 'Игрок') : rData) : (oldP ? oldP.name : `Игрок ${pid}`);
+                                const customCol = (rData && typeof rData === 'object' && rData.c) ? rData.c : null;
+                                const avatarUrl = (rData && typeof rData === 'object' && rData.a) ? rData.a : null;
                                 p = {
-                                    id: pid, pid: pid, name: name,
-                                    color: `hsl(${(colIdx * 45) % 360}, 85%, 55%)`,
+                                    id: pid, pid: pid, name: String(nStr),
+                                    color: customCol || `hsl(${(colIdx * 45) % 360}, 85%, 55%)`,
+                                    avatar: avatarUrl || (oldP ? oldP.avatar : null),
                                     cells: [], dead: false, maxMass: oldP ? Math.max(oldP.maxMass, mass) : mass
                                 };
                                 pMap.set(pid, p);
@@ -1446,16 +1458,38 @@
 
         const elColor = document.getElementById('setPlayerColor');
         const elAvatar = document.getElementById('setPlayerAvatar');
+        const elCustomUrl = document.getElementById('setCustomAvatarUrl');
+
         if (elColor) elColor.value = localStorage.getItem('agario_color') || '#00ffff';
-        if (elAvatar) elAvatar.value = localStorage.getItem('agario_avatar') || '';
+        const savedAva = localStorage.getItem('agario_avatar') || '';
+        if (elAvatar) {
+            if (savedAva && !Array.from(elAvatar.options).some(o => o.value === savedAva)) {
+                elAvatar.value = 'custom';
+                if (elCustomUrl) {
+                    elCustomUrl.style.display = 'block';
+                    elCustomUrl.value = savedAva;
+                }
+            } else {
+                elAvatar.value = savedAva;
+            }
+            elAvatar.onchange = () => {
+                if (elAvatar.value === 'custom') {
+                    if (elCustomUrl) elCustomUrl.style.display = 'block';
+                } else {
+                    if (elCustomUrl) elCustomUrl.style.display = 'none';
+                    localStorage.setItem('agario_avatar', elAvatar.value);
+                }
+            };
+        }
         if (elColor) elColor.onchange = () => localStorage.setItem('agario_color', elColor.value);
-        if (elAvatar) elAvatar.onchange = () => localStorage.setItem('agario_avatar', elAvatar.value);
+        if (elCustomUrl) elCustomUrl.oninput = () => localStorage.setItem('agario_avatar', elCustomUrl.value.trim());
 
         function play() {
             startS.classList.add('hidden'); overS.classList.add('hidden');
             const nickname = document.getElementById('nick').value.trim() || 'Игрок';
             const col = elColor ? elColor.value : '#00ffff';
-            const ava = elAvatar ? elAvatar.value : '';
+            let ava = elAvatar ? elAvatar.value : '';
+            if (ava === 'custom') ava = elCustomUrl ? elCustomUrl.value.trim() : '';
             localStorage.setItem('agario_color', col);
             localStorage.setItem('agario_avatar', ava);
             if (socket) {

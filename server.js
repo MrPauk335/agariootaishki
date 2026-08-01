@@ -803,8 +803,10 @@ io.on('connection', (socket) => {
         if (data && typeof data.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(data.color)) {
             player.color = data.color;
         }
-        if (data && typeof data.avatar === 'string') {
-            player.avatar = data.avatar.slice(0, 150);
+        if (data && typeof data.avatar === 'string' && data.avatar.trim().length > 0) {
+            player.avatar = data.avatar.trim().slice(0, 500);
+        } else {
+            player.avatar = null;
         }
         if (state.phase === 'live') {
             const curZone = getCurrentZone();
