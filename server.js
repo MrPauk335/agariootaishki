@@ -311,10 +311,10 @@ function popCellOnVirus(p, cellIdx) {
 
 /* ---------------------- MATCH FLOW & BOT AI ---------------------- */
 function updateHost() {
-    const readyPlayers = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && (p.status === 'ready' || p.status === 'alive'));
-    if (readyPlayers.length > 0) {
-        if (!readyPlayers.some(p => p.pid === state.hostPid)) {
-            state.hostPid = readyPlayers[0].pid;
+    const allHumans = Array.from(state.players.values()).filter(p => !p.isBot);
+    if (allHumans.length > 0) {
+        if (!allHumans.some(p => p.pid === state.hostPid)) {
+            state.hostPid = allHumans[0].pid;
         }
     } else {
         state.hostPid = null;
@@ -727,14 +727,17 @@ function broadcastTick() {
 
         if (state.phase === 'lobby') {
             updateHost();
-            const readyPlayers = Array.from(state.players.values()).filter(x => !x.isBot && x.hasJoined && (x.status === 'ready' || x.status === 'alive'));
+            const totalHumans = Array.from(state.players.values()).filter(x => !x.isBot).length;
+            const joinedHumans = Array.from(state.players.values()).filter(x => !x.isBot && x.hasJoined).length;
+            const hostPlayer = state.players.get(state.hostPid);
             const isHost = (p && p.pid === state.hostPid);
             socket.emit('lobby_state', {
                 phase: 'lobby',
                 cd: state.cdEnd ? Math.max(0, Math.ceil((state.cdEnd - T()) / 1000)) : null,
-                readyCount: readyPlayers.length,
+                totalHumans: totalHumans,
+                readyCount: joinedHumans,
                 isHost: isHost,
-                hostName: readyPlayers[0] ? readyPlayers[0].name : '',
+                hostName: hostPlayer ? hostPlayer.name : 'Хост',
                 minHumans: 2,
             });
             if (!p || !p.hasJoined) continue;
@@ -848,7 +851,7 @@ io.on('connection', (socket) => {
             player.status = 'spectator';
             socket.emit('joined_spectator');
         } else {
-            player.status = 'ready';
+            player.status = 'alive';
             player.cells = [];
             player.kills = 0;
             player.total = CFG.START_MASS;
@@ -867,12 +870,7 @@ io.on('connection', (socket) => {
     socket.on('host_start_game', () => {
         updateHost();
         if (player.pid !== state.hostPid) {
-            socket.emit('admin_error', 'Только первый игрок (хост) может начать игру!');
-            return;
-        }
-        const readyPlayers = Array.from(state.players.values()).filter(p => !p.isBot && p.hasJoined && (p.status === 'ready' || p.status === 'alive'));
-        if (readyPlayers.length < 2) {
-            socket.emit('admin_error', 'Для запуска игры требуется минимум 2 игрока!');
+            socket.emit('admin_error', 'Только первый игрок (организатор) может начать игру!');
             return;
         }
         state.cdEnd = 0;

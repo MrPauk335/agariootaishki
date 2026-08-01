@@ -816,16 +816,11 @@
                         if (btnH) btnH.classList.add('hidden');
                     } else if (data.isHost) {
                         if (hb) hb.classList.remove('hidden');
-                        if (data.readyCount >= 2) {
-                            if (ht) ht.innerText = `👑 ТЫ ОРГАНИЗАТОР · Готово игроков: ${data.readyCount}`;
-                            if (btnH) btnH.classList.remove('hidden');
-                        } else {
-                            if (ht) ht.innerText = `👑 ТЫ ОРГАНИЗАТОР · Ждем второго игрока (${data.readyCount}/2)...`;
-                            if (btnH) btnH.classList.add('hidden');
-                        }
+                        if (ht) ht.innerText = `👑 ТЫ ОРГАНИЗАТОР · Игроков: ${data.totalHumans}`;
+                        if (btnH) btnH.classList.remove('hidden');
                     } else {
                         if (btnH) btnH.classList.add('hidden');
-                        if (ht) ht.innerText = `⏳ ОЖИДАНИЕ СТАРТА ИГРЫ ${data.hostName ? '(' + data.hostName + ')' : ''} · Игроков: ${data.readyCount}/2`;
+                        if (ht) ht.innerText = `⏳ ОЖИДАНИЕ СТАРТА ИГРЫ ${data.hostName ? '(' + data.hostName + ')' : ''} · Игроков: ${data.totalHumans}`;
                     }
                 });
                 socket.on('match_start', () => {
